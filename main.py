@@ -1,6 +1,5 @@
 import random
 import tkinter as tk
-from tkinter import messagebox
 
 
 class InfiniteStairs:
@@ -64,7 +63,7 @@ class InfiniteStairs:
                 380,
                 text="좌/우 방향키를 누르면\n다시 시작합니다",
                 fill="#a6a6a6",
-                font=("Arial", 14),,
+                font=("Arial", 14),
                 justify="center",
             )
             return
