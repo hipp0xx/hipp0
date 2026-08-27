@@ -1,170 +1,103 @@
+import random
 import streamlit as st
-import streamlit.components.v1 as components
+from streamlit_keyboard_jsx import keyboard
 
-st.set_page_config(page_title="Streamlit Pac-Man Large", layout="centered")
+st.set_page_config(page_title="무한의 계단", page_icon="🪜", layout="centered")
 
-st.title("🟡 Streamlit 대형 팩맨 게임")
-st.write("방향키(⬆️ ⬇️ ⬅️ ➡️)를 사용해 맵 전체의 쿠키를 모두 먹으세요!")
+# --- 게임 상태 초기화 ---
+if "game_over" not in st.session_state:
+    st.session_state.game_over = False
+if "score" not in st.session_state:
+    st.session_state.score = 0
+if "character_dir" not in st.session_state:
+    st.session_state.character_dir = 1  # 1: 오른쪽, -1: 왼쪽
+if "stairs" not in st.session_state:
+    # 계단 방향 생성 (1: 오른쪽 위, -1: 왼쪽 위)
+    st.session_state.stairs = [1]
+    for _ in range(15):
+        st.session_state.stairs.append(random.choice([1, -1]))
 
-pacman_large_html = """
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {
-            background-color: #111;
-            color: white;
-            text-align: center;
-            font-family: Arial, sans-serif;
-            margin: 0;
-            padding: 10px;
-        }
-        canvas {
-            border: 4px solid blue;
-            background-color: black;
-            box-shadow: 0 0 15px rgba(0, 0, 255, 0.5);
-        }
-        #score {
-            font-size: 20px;
-            margin-bottom: 10px;
-            color: yellow;
-            font-weight: bold;
-        }
-    </style>
-</head>
-<body>
-    <div id="score">SCORE: <span id="scoreVal">0</span></div>
-    <canvas id="canvas" width="500" height="500"></canvas>
+# --- 게임 로직 함수 ---
+def climb():
+    """오르기: 현재 바라보는 방향 그대로 한 단 올라감"""
+    if st.session_state.game_over:
+        return
+    
+    target_dir = st.session_state.stairs[0]
+    if st.session_state.character_dir == target_dir:
+        # 성공: 계단 소모 및 새로운 계단 추가
+        st.session_state.score += 1
+        st.session_state.stairs.pop(0)
+        st.session_state.stairs.append(random.choice([1, -1]))
+    else:
+        # 실패: 방향이 맞지 않음
+        st.session_state.game_over = True
 
-    <script>
-        const canvas = document.getElementById("canvas");
-        const ctx = canvas.getContext("2d");
-        const scoreElem = document.getElementById("scoreVal");
+def turn_and_climb():
+    """방향 전환: 바라보는 방향을 바꾼 후 한 단 올라감"""
+    if st.session_state.game_over:
+        return
+    
+    st.session_state.character_dir *= -1
+    climb()
 
-        // 20x20 맵에 맞춰 타일 크기를 25px로 설정 (20 * 25 = 500px)
-        const tileSize = 25;
-        let score = 0;
+def reset_game():
+    st.session_state.game_over = False
+    st.session_state.score = 0
+    st.session_state.character_dir = 1
+    st.session_state.stairs = [1]
+    for _ in range(15):
+        st.session_state.stairs.append(random.choice([1, -1]))
 
-        // 1: 벽, 2: 쿠키, 0: 빈 공간
-        const map = [
-            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-            [1, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 1],
-            [1, 2, 1, 1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 2, 1],
-            [1, 2, 1, 1, 2, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 2, 1, 1, 2, 1],
-            [1, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, 2, 1, 1, 1, 2, 2, 2, 2, 1],
-            [1, 1, 1, 1, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 1, 1],
-            [1, 2, 2, 2, 2, 1, 2, 1, 1, 0, 0, 1, 1, 2, 1, 2, 2, 2, 2, 1],
-            [1, 2, 1, 1, 2, 2, 2, 1, 0, 0, 0, 0, 1, 2, 2, 2, 1, 1, 2, 1],
-            [1, 2, 1, 1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 2, 1],
-            [1, 2, 2, 2, 2, 1, 2, 2, 2, 0, 0, 2, 2, 2, 1, 2, 2, 2, 2, 1],
-            [1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1],
-            [1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1],
-            [1, 2, 1, 1, 2, 1, 1, 1, 2, 1, 1, 2, 1, 1, 1, 2, 1, 1, 2, 1],
-            [1, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 1],
-            [1, 1, 2, 1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1, 2, 1, 2, 1, 1],
-            [1, 2, 2, 2, 2, 1, 2, 2, 2, 1, 1, 2, 2, 2, 1, 2, 2, 2, 2, 1],
-            [1, 2, 1, 1, 1, 1, 1, 1, 2, 1, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1],
-            [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1],
-            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
-        ];
+# --- UI 레이아웃 ---
+st.title("🪜 무한의 계단 (Streamlit Ver.)")
+st.caption("키보드 [방향키 왼쪽/오른쪽] 또는 화면 버튼을 사용해 계단을 올라가세요!")
 
-        let pacman = { x: 1, y: 1, dx: 0, dy: 0 };
-        let ghost = { x: 18, y: 17, dx: -1, dy: 0 };
+# 점수 표시
+st.metric(label="현재 점수", value=f"{st.session_state.score} 계단")
 
-        document.addEventListener("keydown", (e) => {
-            if (e.key === "ArrowUp") { pacman.dx = 0; pacman.dy = -1; }
-            else if (e.key === "ArrowDown") { pacman.dx = 0; pacman.dy = 1; }
-            else if (e.key === "ArrowLeft") { pacman.dx = -1; pacman.dy = 0; }
-            else if (e.key === "ArrowRight") { pacman.dx = 1; pacman.dy = 0; }
-        });
+# 게임 화면 시각화 (텍스트 기반)
+st.subheader("--- 게임 화면 ---")
 
-        function update() {
-            // 팩맨 이동
-            let nextX = pacman.x + pacman.dx;
-            let nextY = pacman.y + pacman.dy;
+display_lines = []
+for i, s_dir in enumerate(st.session_state.stairs[:8]):
+    dir_str = "👉 (오른쪽)" if s_dir == 1 else "👈 (왼쪽)"
+    if i == 0:
+        char_str = "🏃 (캐릭터)" if st.session_state.character_dir == 1 else "(캐릭터) 🏃"
+        display_lines.append(f"**[현재 위치]** 계단 방향: {dir_str} | {char_str}")
+    else:
+        display_lines.append(f"계단 {i+1}: {dir_str}")
 
-            if (map[nextY] && map[nextY][nextX] !== 1) {
-                pacman.x = nextX;
-                pacman.y = nextY;
+for line in display_lines:
+    st.write(line)
 
-                if (map[pacman.y][pacman.x] === 2) {
-                    map[pacman.y][pacman.x] = 0;
-                    score += 10;
-                    scoreElem.innerText = score;
-                }
-            }
+st.write("---")
 
-            // 간단한 유령 랜덤 이동 로직
-            const directions = [{dx:0, dy:-1}, {dx:0, dy:1}, {dx:-1, dy:0}, {dx:1, dy:0}];
-            let validMoves = directions.filter(d => {
-                let gx = ghost.x + d.dx;
-                let gy = ghost.y + d.dy;
-                return map[gy] && map[gy][gx] !== 1;
-            });
+# --- 조작부 ---
+if not st.session_state.game_over:
+    col1, col2 = st.columns(2)
+    
+    # 방향에 따라 버튼 역할 매핑
+    with col1:
+        st.button("⬅️ 방향 전환 후 오르기", on_click=turn_and_climb, use_container_width=True)
+    with col2:
+        st.button("⬆️ 그대로 오르기", on_click=climb, use_container_width=True)
 
-            if (validMoves.length > 0) {
-                let move = validMoves[Math.floor(Math.random() * validMoves.length)];
-                ghost.x += move.dx;
-                ghost.y += move.dy;
-            }
+    # 키보드 이벤트 감지 (왼쪽/오른쪽 화살표)
+    key_event = keyboard(key_cause_event_down=["ArrowLeft", "ArrowRight"])
+    if key_event == "ArrowLeft":
+        if st.session_state.character_dir == -1:
+            climb()
+        else:
+            turn_and_climb()
+        st.rerun()
+    elif key_event == "ArrowRight":
+        if st.session_state.character_dir == 1:
+            climb()
+        else:
+            turn_and_climb()
+        st.rerun()
 
-            // 충돌 체크
-            if (pacman.x === ghost.x && pacman.y === ghost.y) {
-                alert("게임 오버! 점수: " + score);
-                pacman.x = 1;
-                pacman.y = 1;
-                pacman.dx = 0;
-                pacman.dy = 0;
-                score = 0;
-                scoreElem.innerText = score;
-            }
-        }
-
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-            // 맵 그리기
-            for (let r = 0; r < map.length; r++) {
-                for (let c = 0; c < map[r].length; c++) {
-                    if (map[r][c] === 1) {
-                        ctx.fillStyle = "#1919A6";
-                        ctx.fillRect(c * tileSize, r * tileSize, tileSize, tileSize);
-                    } else if (map[r][c] === 2) {
-                        ctx.fillStyle = "#ffb8ae";
-                        ctx.beginPath();
-                        ctx.arc(c * tileSize + tileSize / 2, r * tileSize + tileSize / 2, 3, 0, Math.PI * 2);
-                        ctx.fill();
-                    }
-                }
-            }
-
-            // 팩맨 그리기
-            ctx.fillStyle = "yellow";
-            ctx.beginPath();
-            let cx = pacman.x * tileSize + tileSize / 2;
-            let cy = pacman.y * tileSize + tileSize / 2;
-            ctx.arc(cx, cy, tileSize / 2 - 2, 0.2 * Math.PI, 1.8 * Math.PI);
-            ctx.lineTo(cx, cy);
-            ctx.fill();
-
-            // 유령 그리기 (빨간색)
-            ctx.fillStyle = "red";
-            ctx.beginPath();
-            let gx = ghost.x * tileSize + tileSize / 2;
-            let gy = ghost.y * tileSize + tileSize / 2;
-            ctx.arc(gx, gy, tileSize / 2 - 2, 0, Math.PI * 2);
-            ctx.fill();
-        }
-
-        function gameLoop() {
-            update();
-            draw();
-        }
-
-        setInterval(gameLoop, 150);
-    </script>
-</body>
-</html>
-"""
-
-components.html(pacman_large_html, height=600)
+else:
+    st.error(f"💥 게임 오버! 최종 기록: {st.session_state.score} 계단")
+    st.button("🔄 다시 시작하기", on_click=reset_game, use_container_width=True)
