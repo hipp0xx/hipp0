@@ -1,107 +1,126 @@
 import streamlit as st
+import streamlit.components.v1 as components
 
-# 페이지 기본 설정
-st.set_page_config(page_title="MBTI 직업 추천기", page_icon="💼", layout="centered")
+st.set_page_config(page_title="Streamlit Pac-Man", layout="centered")
 
-# MBTI별 정보 데이터베이스
-mbti_data = {
-    "INTJ": {
-        "title": "용의주도한 전략가",
-        "jobs": ["데이터 분석가", "소프트웨어 개발자", "경영 컨설턴트", "연구원"],
-        "desc": "전략적 사고에 능하며 독창적인 아이디어를 구체화하는 데 강점이 있습니다."
-    },
-    "INTP": {
-        "title": "논리적인 명상가",
-        "jobs": ["AI 연구원", "물리학자", "시스템 아키텍트", "게임 기획자"],
-        "desc": "지적 호기심이 높고 복잡한 문제를 논리적으로 분석하는 것을 즐깁니다."
-    },
-    "ENTJ": {
-        "title": "대담한 통솔자",
-        "jobs": ["CEO / 기업가", "프로젝트 매니저(PM)", "투자 은행가", "변호사"],
-        "desc": "목표 달성을 위해 팀을 끌어주는 리더십과 비전 제시 능력이 뛰어납니다."
-    },
-    "ENTP": {
-        "title": "뜨거운 논쟁을 즐기는 변론가",
-        "jobs": ["스타트업 창업가", "마케터", "기획자", "정치 분석가"],
-        "desc": "창의적이고 도전적인 환경에서 다양한 아이디어를 제시하는 데 능합니다."
-    },
-    "INFJ": {
-        "title": "선선의 옹호자",
-        "jobs": ["심리상담사", "작가", "HR 전문가", "비영리단체 활동가"],
-        "desc": "통찰력이 뛰어나고 다른 사람의 성장을 돕는 일에 보람을 느낍니다."
-    },
-    "INFP": {
-        "title": "열정적인 중재자",
-        "jobs": ["웹툰 작가", "일러스트레이터", "콘텐츠 크리에이터", "번역가"],
-        "desc": "이상주의적인 성향과 풍부한 상상력으로 창의적인 분야에서 빛을 발합니다."
-    },
-    "ENFJ": {
-        "title": "정의로운 사회운동가",
-        "jobs": ["교사 / 강사", "홍보(PR) 전문가", "사회복지사", "팀 리더"],
-        "desc": "타인에게 동기를 부여하고 긍정적인 영향력을 미치는 환경을 선호합니다."
-    },
-    "ENFP": {
-        "title": "재기발랄한 활동가",
-        "jobs": ["이벤트 기획자", "카피라이터", "아나운서", "여행 가이드"],
-        "desc": "에너지가 넘치고 창의적이며, 끊임없이 새로운 프로젝트를 탐색합니다."
-    },
-    "ISTJ": {
-        "title": "청렴결백한 논리주의자",
-        "jobs": ["회계사", "데이터베이스 관리자", "공무원", "품질 관리자"],
-        "desc": "책임감이 강하며 규칙과 체계가 명확한 작업 환경에서 성과를 냅니다."
-    },
-    "ISFJ": {
-        "title": "용감한 수호자",
-        "jobs": ["간호사", "초등교사", "행정 관리자", "고객 지원 매니저"],
-        "desc": "세심하고 세심한 일처리와 함께 남을 돕는 이타적인 성향이 강합니다."
-    },
-    "ESTJ": {
-        "title": "엄격한 관리자",
-        "jobs": ["운영 매니저", "재무 분석가", "경찰관 / 군인", "공장 관리자"],
-        "desc": "실용적이고 현실적이며 업무 조직화와 관리에 뛰어난 능력을 보입니다."
-    },
-    "ESFJ": {
-        "title": "사교적인 외교관",
-        "jobs": ["승무원", "행사 진행자", "고객 서비스 팀장", "영업 담당자"],
-        "desc": "친화력이 높고 조화로운 공동체 환경에서 빛을 발하는 스타일입니다."
-    },
-    "ISTP": {
-        "title": "만능 재주꾼",
-        "jobs": ["엔지니어", "네트워크 관리자", "파일럿", "데이터 엔지니어"],
-        "desc": "도구나 기계를 다루는 것에 능하며 문제 해결 능력이 탁월합니다."
-    },
-    "ISFP": {
-        "title": "호기심 많은 예술가",
-        "jobs": ["UI/UX 디자이너", "사진작가", "패션 디자이너", "조경가"],
-        "desc": "감각적이고 미적 감각이 뛰어나며 자유로운 창작 환경을 선호합니다."
-    },
-    "ESTP": {
-        "title": "모험을 즐기는 사업가",
-        "jobs": ["부동산 중개인", "영업 전문가", "응급구조사", "스포츠 코치"],
-        "desc": "순발력이 좋고 변화무쌍한 현장에서 문제 해결력을 발휘합니다."
-    },
-    "ESFP": {
-        "title": "자유로운 영혼의 연예인",
-        "jobs": ["배우 / 연기자", "투어 리더", "이벤트 MC", "패션 스타일리스트"],
-        "desc": "사교적이고 흥이 많아 사람들의 주목을 받으며 에너지를 전달합니다."
-    }
-}
+st.title("🟡 Streamlit 팩맨 게임")
+st.write("방향키(⬆️ ⬇️ ⬅️ ➡️)를 사용해 쿠키를 모두 먹으세요!")
 
-# UI 구성
-st.title("🧩 MBTI 맞춤 직업 추천기")
-st.write("자신의 MBTI를 선택하면 성향에 맞는 직업군을 추천해 드립니다.")
+# HTML/JS 기반 팩맨 게임 코드
+pacman_html = """
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body {
+            background-color: #111;
+            color: white;
+            text-align: center;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 10px;
+        }
+        canvas {
+            border: 4px solid blue;
+            background-color: black;
+            box-shadow: 0 0 15px rgba(0, 0, 255, 0.5);
+        }
+        #score {
+            font-size: 20px;
+            margin-bottom: 10px;
+            color: #yellow;
+        }
+    </style>
+</head>
+<body>
+    <div id="score">SCORE: <span id="scoreVal">0</span></div>
+    <canvas id="canvas" width="400" height="400"></canvas>
 
-st.divider()
+    <script>
+        const canvas = document.getElementById("canvas");
+        const ctx = canvas.getContext("2d");
+        const scoreElem = document.getElementById("scoreVal");
 
-# 드롭다운 선택
-selected_mbti = st.selectbox("당신의 MBTI를 선택하세요:", list(mbti_data.keys()))
+        const tileSize = 40;
+        let score = 0;
 
-if selected_mbti:
-    info = mbti_data[selected_mbti]
-    
-    st.subheader(f"[{selected_mbti}] {info['title']}")
-    st.info(info["desc"])
-    
-    st.markdown("### 💡 추천 직업 List")
-    for job in info["jobs"]:
-        st.write(f"- **{job}**")
+        // 1: 벽, 2: 쿠키, 0: 빈 공간
+        const map = [
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 2, 2, 2, 1, 2, 2, 2, 2, 1],
+            [1, 2, 1, 2, 1, 2, 1, 1, 2, 1],
+            [1, 2, 1, 2, 2, 2, 2, 1, 2, 1],
+            [1, 2, 1, 1, 1, 1, 2, 1, 2, 1],
+            [1, 2, 2, 2, 0, 2, 2, 1, 2, 1],
+            [1, 1, 1, 2, 1, 1, 2, 1, 2, 1],
+            [1, 2, 2, 2, 2, 1, 2, 2, 2, 1],
+            [1, 2, 1, 1, 2, 2, 2, 1, 2, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+        ];
+
+        let pacman = { x: 1, y: 1, dx: 0, dy: 0, mouth: 0.2 };
+
+        document.addEventListener("keydown", (e) => {
+            if (e.key === "ArrowUp") { pacman.dx = 0; pacman.dy = -1; }
+            else if (e.key === "ArrowDown") { pacman.dx = 0; pacman.dy = 1; }
+            else if (e.key === "ArrowLeft") { pacman.dx = -1; pacman.dy = 0; }
+            else if (e.key === "ArrowRight") { pacman.dx = 1; pacman.dy = 0; }
+        });
+
+        function update() {
+            let nextX = pacman.x + pacman.dx;
+            let nextY = pacman.y + pacman.dy;
+
+            if (map[nextY] && map[nextY][nextX] !== 1) {
+                pacman.x = nextX;
+                pacman.y = nextY;
+
+                if (map[pacman.y][pacman.x] === 2) {
+                    map[pacman.y][pacman.x] = 0;
+                    score += 10;
+                    scoreElem.innerText = score;
+                }
+            }
+        }
+
+        function draw() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 맵 그리기
+            for (let r = 0; r < map.length; r++) {
+                for (let c = 0; c < map[r].length; c++) {
+                    if (map[r][c] === 1) {
+                        ctx.fillStyle = "blue";
+                        ctx.fillRect(c * tileSize, r * tileSize, tileSize, tileSize);
+                    } else if (map[r][c] === 2) {
+                        ctx.fillStyle = "#ffb8ae";
+                        ctx.beginPath();
+                        ctx.arc(c * tileSize + tileSize / 2, r * tileSize + tileSize / 2, 4, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                }
+            }
+
+            // 팩맨 그리기
+            ctx.fillStyle = "yellow";
+            ctx.beginPath();
+            let cx = pacman.x * tileSize + tileSize / 2;
+            let cy = pacman.y * tileSize + tileSize / 2;
+            ctx.arc(cx, cy, tileSize / 2 - 2, 0.2 * Math.PI, 1.8 * Math.PI);
+            ctx.lineTo(cx, cy);
+            ctx.fill();
+        }
+
+        function gameLoop() {
+            update();
+            draw();
+        }
+
+        setInterval(gameLoop, 200);
+    </script>
+</body>
+</html>
+"""
+
+# Streamlit 내에 HTML 컴포넌트 렌더링
+components.html(pacman_html, height=500)
