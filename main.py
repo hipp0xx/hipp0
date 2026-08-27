@@ -1,13 +1,12 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.set_page_config(page_title="Streamlit Pac-Man", layout="centered")
+st.set_page_config(page_title="Streamlit Pac-Man Large", layout="centered")
 
-st.title("🟡 Streamlit 팩맨 게임")
-st.write("방향키(⬆️ ⬇️ ⬅️ ➡️)를 사용해 쿠키를 모두 먹으세요!")
+st.title("🟡 Streamlit 대형 팩맨 게임")
+st.write("방향키(⬆️ ⬇️ ⬅️ ➡️)를 사용해 맵 전체의 쿠키를 모두 먹으세요!")
 
-# HTML/JS 기반 팩맨 게임 코드
-pacman_html = """
+pacman_large_html = """
 <!DOCTYPE html>
 <html>
 <head>
@@ -28,37 +27,49 @@ pacman_html = """
         #score {
             font-size: 20px;
             margin-bottom: 10px;
-            color: #yellow;
+            color: yellow;
+            font-weight: bold;
         }
     </style>
 </head>
 <body>
     <div id="score">SCORE: <span id="scoreVal">0</span></div>
-    <canvas id="canvas" width="400" height="400"></canvas>
+    <canvas id="canvas" width="500" height="500"></canvas>
 
     <script>
         const canvas = document.getElementById("canvas");
         const ctx = canvas.getContext("2d");
         const scoreElem = document.getElementById("scoreVal");
 
-        const tileSize = 40;
+        // 20x20 맵에 맞춰 타일 크기를 25px로 설정 (20 * 25 = 500px)
+        const tileSize = 25;
         let score = 0;
 
         // 1: 벽, 2: 쿠키, 0: 빈 공간
         const map = [
-            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
-            [1, 2, 2, 2, 1, 2, 2, 2, 2, 1],
-            [1, 2, 1, 2, 1, 2, 1, 1, 2, 1],
-            [1, 2, 1, 2, 2, 2, 2, 1, 2, 1],
-            [1, 2, 1, 1, 1, 1, 2, 1, 2, 1],
-            [1, 2, 2, 2, 0, 2, 2, 1, 2, 1],
-            [1, 1, 1, 2, 1, 1, 2, 1, 2, 1],
-            [1, 2, 2, 2, 2, 1, 2, 2, 2, 1],
-            [1, 2, 1, 1, 2, 2, 2, 1, 2, 1],
-            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1],
+            [1, 2, 2, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 2, 2, 1],
+            [1, 2, 1, 1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 2, 1],
+            [1, 2, 1, 1, 2, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 2, 1, 1, 2, 1],
+            [1, 2, 2, 2, 2, 1, 1, 1, 2, 1, 1, 2, 1, 1, 1, 2, 2, 2, 2, 1],
+            [1, 1, 1, 1, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 1, 1, 1, 1],
+            [1, 2, 2, 2, 2, 1, 2, 1, 1, 0, 0, 1, 1, 2, 1, 2, 2, 2, 2, 1],
+            [1, 2, 1, 1, 2, 2, 2, 1, 0, 0, 0, 0, 1, 2, 2, 2, 1, 1, 2, 1],
+            [1, 2, 1, 1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1, 2, 1, 1, 2, 1],
+            [1, 2, 2, 2, 2, 1, 2, 2, 2, 0, 0, 2, 2, 2, 1, 2, 2, 2, 2, 1],
+            [1, 1, 1, 1, 2, 1, 1, 1, 2, 1, 1, 2, 1, 1, 1, 2, 1, 1, 1, 1],
+            [1, 2, 2, 2, 2, 2, 2, 2, 2, 1, 1, 2, 2, 2, 2, 2, 2, 2, 2, 1],
+            [1, 2, 1, 1, 2, 1, 1, 1, 2, 1, 1, 2, 1, 1, 1, 2, 1, 1, 2, 1],
+            [1, 2, 2, 1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1, 2, 2, 1],
+            [1, 1, 2, 1, 2, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1, 2, 1, 2, 1, 1],
+            [1, 2, 2, 2, 2, 1, 2, 2, 2, 1, 1, 2, 2, 2, 1, 2, 2, 2, 2, 1],
+            [1, 2, 1, 1, 1, 1, 1, 1, 2, 1, 1, 2, 1, 1, 1, 1, 1, 1, 2, 1],
+            [1, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 1],
+            [1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
         ];
 
-        let pacman = { x: 1, y: 1, dx: 0, dy: 0, mouth: 0.2 };
+        let pacman = { x: 1, y: 1, dx: 0, dy: 0 };
+        let ghost = { x: 18, y: 17, dx: -1, dy: 0 };
 
         document.addEventListener("keydown", (e) => {
             if (e.key === "ArrowUp") { pacman.dx = 0; pacman.dy = -1; }
@@ -68,6 +79,7 @@ pacman_html = """
         });
 
         function update() {
+            // 팩맨 이동
             let nextX = pacman.x + pacman.dx;
             let nextY = pacman.y + pacman.dy;
 
@@ -81,6 +93,31 @@ pacman_html = """
                     scoreElem.innerText = score;
                 }
             }
+
+            // 간단한 유령 랜덤 이동 로직
+            const directions = [{dx:0, dy:-1}, {dx:0, dy:1}, {dx:-1, dy:0}, {dx:1, dy:0}];
+            let validMoves = directions.filter(d => {
+                let gx = ghost.x + d.dx;
+                let gy = ghost.y + d.dy;
+                return map[gy] && map[gy][gx] !== 1;
+            });
+
+            if (validMoves.length > 0) {
+                let move = validMoves[Math.floor(Math.random() * validMoves.length)];
+                ghost.x += move.dx;
+                ghost.y += move.dy;
+            }
+
+            // 충돌 체크
+            if (pacman.x === ghost.x && pacman.y === ghost.y) {
+                alert("게임 오버! 점수: " + score);
+                pacman.x = 1;
+                pacman.y = 1;
+                pacman.dx = 0;
+                pacman.dy = 0;
+                score = 0;
+                scoreElem.innerText = score;
+            }
         }
 
         function draw() {
@@ -90,12 +127,12 @@ pacman_html = """
             for (let r = 0; r < map.length; r++) {
                 for (let c = 0; c < map[r].length; c++) {
                     if (map[r][c] === 1) {
-                        ctx.fillStyle = "blue";
+                        ctx.fillStyle = "#1919A6";
                         ctx.fillRect(c * tileSize, r * tileSize, tileSize, tileSize);
                     } else if (map[r][c] === 2) {
                         ctx.fillStyle = "#ffb8ae";
                         ctx.beginPath();
-                        ctx.arc(c * tileSize + tileSize / 2, r * tileSize + tileSize / 2, 4, 0, Math.PI * 2);
+                        ctx.arc(c * tileSize + tileSize / 2, r * tileSize + tileSize / 2, 3, 0, Math.PI * 2);
                         ctx.fill();
                     }
                 }
@@ -109,6 +146,14 @@ pacman_html = """
             ctx.arc(cx, cy, tileSize / 2 - 2, 0.2 * Math.PI, 1.8 * Math.PI);
             ctx.lineTo(cx, cy);
             ctx.fill();
+
+            // 유령 그리기 (빨간색)
+            ctx.fillStyle = "red";
+            ctx.beginPath();
+            let gx = ghost.x * tileSize + tileSize / 2;
+            let gy = ghost.y * tileSize + tileSize / 2;
+            ctx.arc(gx, gy, tileSize / 2 - 2, 0, Math.PI * 2);
+            ctx.fill();
         }
 
         function gameLoop() {
@@ -116,11 +161,10 @@ pacman_html = """
             draw();
         }
 
-        setInterval(gameLoop, 200);
+        setInterval(gameLoop, 150);
     </script>
 </body>
 </html>
 """
 
-# Streamlit 내에 HTML 컴포넌트 렌더링
-components.html(pacman_html, height=500)
+components.html(pacman_large_html, height=600)
