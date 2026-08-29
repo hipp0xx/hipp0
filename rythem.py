@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.title("📐 Streamlit Geometry Dash (Spaced Jump Edition)")
+st.title("📐 Streamlit Geometry Dash (Portal & Wave Mode)")
 
 # HTML/JS 기반 게임 코드
 game_code = """
@@ -80,7 +80,7 @@ game_code = """
         <!-- 시작 화면 -->
         <div id="startOverlay" class="ui-overlay">
             <div class="title-text">GEOMETRY DASH</div>
-            <div class="sub-text">넓은 계단 점프 액션</div>
+            <div class="sub-text">CUBE ⇄ WAVE 포탈 액션</div>
             <div class="btn-container">
                 <button class="btn btn-start" onclick="startGame()">게임 시작 🚀</button>
             </div>
@@ -95,7 +95,7 @@ game_code = """
             </div>
         </div>
     </div>
-    <div id="info"><b>조작법:</b> 스페이스바, 위쪽 화살표 또는 클릭 (길게 누르면 연속 점프 유지)</div>
+    <div id="info"><b>조작법:</b> 홀드(클릭/스페이스바) - Cube: 연속 점프 | Wave: 대각선 상승 (떼면 하강)</div>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
@@ -105,6 +105,7 @@ game_code = """
         const finalScoreText = document.getElementById("finalScore");
 
         const FLOOR_Y = 240;
+        const CEIL_Y = 30;
 
         // Web Audio API BGM
         let audioCtx = null;
@@ -209,7 +210,7 @@ game_code = """
             }
         }
 
-        // 게임 상태 및 물리 변수 (이지 모드 고정)
+        // 게임 상태 및 변수
         let gameStarted = false;
         let gameOver = false;
         let score = 0;
@@ -217,24 +218,29 @@ game_code = """
         const gameSpeed = 5;
         const gravity = 0.58;
         const jumpForce = -9.2;
+        const waveSpeedY = 6;
 
-        let player, obstacles, terrains, coins, frameCount, animationFrameId;
-        let isJumpHolding = false; // 버튼 홀드 상태 변수
+        let playerMode = 'cube'; // 'cube' 또는 'wave'
+        let player, obstacles, terrains, portals, coins, trail, frameCount, animationFrameId;
+        let isHolding = false;
 
         function init() {
             gameOver = false;
             score = 0;
             coinsCollected = 0;
             frameCount = 0;
+            playerMode = 'cube';
             obstacles = [];
             terrains = [];
+            portals = [];
             coins = [];
+            trail = [];
 
             player = {
                 x: 80,
                 y: FLOOR_Y - 26,
-                width: 26,
-                height: 26,
+                width: 24,
+                height: 24,
                 vy: 0,
                 isGrounded: true,
                 rotation: 0
@@ -244,184 +250,221 @@ game_code = """
             startOverlay.style.display = "none";
         }
 
-        // 키/마우스 입력 이벤트 (홀드 처리)
+        // 홀드 이벤트
         window.addEventListener("keydown", (e) => {
-            if (e.code === "Space" || e.code === "ArrowUp") {
-                isJumpHolding = true;
-            }
+            if (e.code === "Space" || e.code === "ArrowUp") isHolding = true;
         });
-
         window.addEventListener("keyup", (e) => {
-            if (e.code === "Space" || e.code === "ArrowUp") {
-                isJumpHolding = false;
-            }
+            if (e.code === "Space" || e.code === "ArrowUp") isHolding = false;
         });
+        canvas.addEventListener("mousedown", () => { isHolding = true; });
+        window.addEventListener("mouseup", () => { isHolding = false; });
 
-        canvas.addEventListener("mousedown", () => {
-            isJumpHolding = true;
-        });
-
-        window.addEventListener("mouseup", () => {
-            isJumpHolding = false;
-        });
-
-        // 지형 생성 (간격이 매우 넓은 계단 및 길쭉한 조형물)
+        // 요소 스폰 (현재 플레이어 모드에 맞춰 생성)
         function spawnElements() {
-            const rand = Math.random();
-
-            if (rand < 0.5) {
-                // 1. 점프해서 겨우 넘어가는 넓은 간격의 계단
-                const stepWidth = 40;
-                const stepGap = 85; // 캐릭터 속도(5) 대비 빠듯하게 닿는 넓은 간격
-                const stepHeight = 22;
-                const totalSteps = 3;
-
-                for (let i = 0; i < totalSteps; i++) {
-                    const stepX = canvas.width + (i * (stepWidth + stepGap));
-                    const stepY = FLOOR_Y - ((i + 1) * stepHeight);
-
-                    terrains.push({
-                        type: 'stair',
-                        x: stepX,
-                        y: stepY,
-                        width: stepWidth,
-                        height: FLOOR_Y - stepY
-                    });
-
-                    // 넓은 계단 사이에 가시 배치
-                    if (i < totalSteps - 1) {
-                        obstacles.push({
-                            type: 'spike',
-                            x: stepX + stepWidth + (stepGap / 2) - 10,
-                            y: FLOOR_Y - 22,
-                            width: 20,
-                            height: 22
-                        });
-                    }
-                }
-
-                // 마지막 계단 위 코인
-                const lastX = canvas.width + ((totalSteps - 1) * (stepWidth + stepGap));
-                coins.push({
-                    x: lastX + stepWidth / 2,
-                    y: FLOOR_Y - (totalSteps * stepHeight) - 20,
-                    radius: 8,
-                    collected: false
-                });
-
-            } else if (rand < 0.8) {
-                // 2. 가로로 길쭉한 발판 조형물
-                const longWidth = 150;
-                const longHeight = 22;
-                const longY = FLOOR_Y - 55;
-
-                terrains.push({
-                    type: 'structure',
+            // 주기적으로 포탈 스폰 (150프레임마다 모드 전환 기회 제공)
+            if (frameCount % 300 === 150) {
+                const targetMode = playerMode === 'cube' ? 'wave' : 'cube';
+                portals.push({
                     x: canvas.width,
-                    y: longY,
-                    width: longWidth,
-                    height: longHeight
+                    y: FLOOR_Y - 110,
+                    width: 30,
+                    height: 80,
+                    targetMode: targetMode
                 });
+                return;
+            }
 
-                // 조형물 위에 가시 또는 코인 배치
-                if (Math.random() > 0.5) {
-                    obstacles.push({
-                        type: 'spike',
-                        x: canvas.width + 65,
-                        y: longY - 22,
-                        width: 20,
+            if (playerMode === 'cube') {
+                // [Cube 모드용 패턴] 넓은 간격 계단, 발판, 가시
+                const rand = Math.random();
+                if (rand < 0.5) {
+                    const stepWidth = 40;
+                    const stepGap = 85;
+                    const stepHeight = 22;
+                    const totalSteps = 3;
+
+                    for (let i = 0; i < totalSteps; i++) {
+                        const stepX = canvas.width + (i * (stepWidth + stepGap));
+                        const stepY = FLOOR_Y - ((i + 1) * stepHeight);
+
+                        terrains.push({
+                            type: 'stair',
+                            x: stepX,
+                            y: stepY,
+                            width: stepWidth,
+                            height: FLOOR_Y - stepY
+                        });
+
+                        if (i < totalSteps - 1) {
+                            obstacles.push({
+                                type: 'spike',
+                                x: stepX + stepWidth + (stepGap / 2) - 10,
+                                y: FLOOR_Y - 22,
+                                width: 20,
+                                height: 22
+                            });
+                        }
+                    }
+                } else {
+                    const longWidth = 140;
+                    const longY = FLOOR_Y - 55;
+                    terrains.push({
+                        type: 'structure',
+                        x: canvas.width,
+                        y: longY,
+                        width: longWidth,
                         height: 22
                     });
-                } else {
                     coins.push({
-                        x: canvas.width + 75,
+                        x: canvas.width + 70,
                         y: longY - 20,
                         radius: 8,
                         collected: false
                     });
                 }
-
             } else {
-                // 3. 바닥 가시 장애물
-                obstacles.push({
-                    type: 'spike',
-                    x: canvas.width,
-                    y: FLOOR_Y - 26,
-                    width: 22,
-                    height: 26
-                });
+                // [Wave 모드용 패턴] 톱니바퀴, 좁은 통로 지형
+                const rand = Math.random();
+                if (rand < 0.6) {
+                    // 상단/하단 가시 톱니바퀴
+                    const isTop = Math.random() > 0.5;
+                    obstacles.push({
+                        type: 'saw',
+                        x: canvas.width,
+                        y: isTop ? CEIL_Y + 10 : FLOOR_Y - 40,
+                        radius: 20
+                    });
+                } else {
+                    // 중간 지그재그 통로용 블록
+                    const blockY = Math.random() > 0.5 ? FLOOR_Y - 90 : CEIL_Y + 40;
+                    terrains.push({
+                        type: 'wave_block',
+                        x: canvas.width,
+                        y: blockY,
+                        width: 80,
+                        height: 50
+                    });
+                }
+
+                if (Math.random() < 0.4) {
+                    coins.push({
+                        x: canvas.width + 40,
+                        y: FLOOR_Y - 100,
+                        radius: 8,
+                        collected: false
+                    });
+                }
             }
         }
 
         function update() {
             if (!gameStarted || gameOver) return;
 
-            // 버튼 홀드 점프 처리
-            if (isJumpHolding && player.isGrounded) {
-                player.vy = jumpForce;
-                player.isGrounded = false;
+            // --- 플레이어 물리학 및 이동 ---
+            if (playerMode === 'cube') {
+                if (isHolding && player.isGrounded) {
+                    player.vy = jumpForce;
+                    player.isGrounded = false;
+                }
+                player.vy += gravity;
+                player.y += player.vy;
+
+                if (!player.isGrounded) {
+                    player.rotation += 0.12;
+                } else {
+                    player.rotation = Math.round(player.rotation / (Math.PI / 2)) * (Math.PI / 2);
+                }
+            } else if (playerMode === 'wave') {
+                // Wave 이동: 홀드 시 대각선 위로, 떼면 대각선 아래로
+                if (isHolding) {
+                    player.y -= waveSpeedY;
+                    player.rotation = -Math.PI / 4;
+                } else {
+                    player.y += waveSpeedY;
+                    player.rotation = Math.PI / 4;
+                }
+
+                // Wave 궤적 잔상 저장
+                trail.push({ x: player.x + player.width / 2, y: player.y + player.height / 2 });
+                if (trail.length > 25) trail.shift();
+
+                // 천장 및 바닥 충돌 판정
+                if (player.y <= CEIL_Y || player.y + player.height >= FLOOR_Y) {
+                    triggerGameOver();
+                }
             }
 
-            // 중력 및 이동
-            player.vy += gravity;
-            player.y += player.vy;
-
-            // 회전
-            if (!player.isGrounded) {
-                player.rotation += 0.12;
-            } else {
-                player.rotation = Math.round(player.rotation / (Math.PI / 2)) * (Math.PI / 2);
-            }
-
-            // 스폰 주기
+            // 스폰
             frameCount++;
             if (frameCount % 85 === 0) {
                 spawnElements();
             }
 
-            // 위치 이동
+            // 오브젝트 이동
             for (let t of terrains) t.x -= gameSpeed;
             for (let obs of obstacles) obs.x -= gameSpeed;
+            for (let p of portals) p.x -= gameSpeed;
             for (let coin of coins) coin.x -= gameSpeed;
+            for (let tr of trail) tr.x -= gameSpeed;
 
-            // --- 지형 충돌 처리 ---
-            player.isGrounded = false;
-
-            for (let t of terrains) {
-                const pRight = player.x + player.width;
-                const pLeft = player.x;
-                const pBottom = player.y + player.height;
-                const pTop = player.y;
-
-                const tRight = t.x + t.width;
-                const tLeft = t.x;
-                const tTop = t.y;
-                const tBottom = t.y + t.height;
-
-                if (pRight > tLeft && pLeft < tRight) {
-                    // 착지 판정
-                    if (player.vy >= 0 && pBottom >= tTop && pBottom - player.vy <= tTop + 12) {
-                        player.y = tTop - player.height;
+            // --- 포탈 충돌 판정 ---
+            for (let p of portals) {
+                if (
+                    player.x + player.width > p.x &&
+                    player.x < p.x + p.width &&
+                    player.y + player.height > p.y &&
+                    player.y < p.y + p.height
+                ) {
+                    if (playerMode !== p.targetMode) {
+                        playerMode = p.targetMode;
                         player.vy = 0;
-                        player.isGrounded = true;
-                    } 
-                    // 측면 충돌 판정
-                    else if (pBottom > tTop + 8 && pTop < tBottom) {
-                        if (pRight - gameSpeed <= tLeft) {
-                            triggerGameOver();
-                        }
+                        trail = [];
                     }
                 }
             }
 
-            // 바닥 착지
-            if (player.y + player.height >= FLOOR_Y) {
-                player.y = FLOOR_Y - player.height;
-                player.vy = 0;
-                player.isGrounded = true;
+            // --- Cube 지형 충돌 ---
+            if (playerMode === 'cube') {
+                player.isGrounded = false;
+
+                for (let t of terrains) {
+                    const pRight = player.x + player.width;
+                    const pLeft = player.x;
+                    const pBottom = player.y + player.height;
+                    const pTop = player.y;
+
+                    if (pRight > t.x && pLeft < t.x + t.width) {
+                        if (player.vy >= 0 && pBottom >= t.y && pBottom - player.vy <= t.y + 12) {
+                            player.y = t.y - player.height;
+                            player.vy = 0;
+                            player.isGrounded = true;
+                        } else if (pBottom > t.y + 8 && pTop < t.y + t.height) {
+                            if (pRight - gameSpeed <= t.x) triggerGameOver();
+                        }
+                    }
+                }
+
+                if (player.y + player.height >= FLOOR_Y) {
+                    player.y = FLOOR_Y - player.height;
+                    player.vy = 0;
+                    player.isGrounded = true;
+                }
+            } else {
+                // Wave 지형 충돌
+                for (let t of terrains) {
+                    if (
+                        player.x + player.width > t.x &&
+                        player.x < t.x + t.width &&
+                        player.y + player.height > t.y &&
+                        player.y < t.y + t.height
+                    ) {
+                        triggerGameOver();
+                    }
+                }
             }
 
-            // --- 가시 충돌 ---
+            // --- 장애물 충돌 (가시 / 톱니) ---
             for (let obs of obstacles) {
                 if (obs.type === 'spike') {
                     if (
@@ -430,6 +473,11 @@ game_code = """
                         player.y + player.height > obs.y + 4 &&
                         player.y < obs.y + obs.height
                     ) {
+                        triggerGameOver();
+                    }
+                } else if (obs.type === 'saw') {
+                    const dist = Math.hypot((player.x + player.width / 2) - obs.x, (player.y + player.height / 2) - obs.y);
+                    if (dist < player.width / 2 + obs.radius - 2) {
                         triggerGameOver();
                     }
                 }
@@ -450,6 +498,7 @@ game_code = """
             // 화면 밖 요소 정리
             if (terrains.length > 0 && terrains[0].x + 300 < 0) terrains.shift();
             if (obstacles.length > 0 && obstacles[0].x + 100 < 0) obstacles.shift();
+            if (portals.length > 0 && portals[0].x + 100 < 0) portals.shift();
             while (coins.length > 0 && coins[0].x + coins[0].radius < 0) coins.shift();
 
             if (!gameOver) score += Math.floor(gameSpeed / 3);
@@ -467,28 +516,54 @@ game_code = """
 
             if (!gameStarted) return;
 
-            // 바닥
+            // 바닥 및 천장
             ctx.fillStyle = "#222233";
             ctx.fillRect(0, FLOOR_Y, canvas.width, canvas.height - FLOOR_Y);
-            ctx.strokeStyle = "#00ffff";
+            ctx.fillRect(0, 0, canvas.width, CEIL_Y);
+
+            ctx.strokeStyle = playerMode === 'wave' ? "#ff0055" : "#00ffff";
             ctx.lineWidth = 3;
             ctx.beginPath();
-            ctx.moveTo(0, FLOOR_Y);
-            ctx.lineTo(canvas.width, FLOOR_Y);
+            ctx.moveTo(0, FLOOR_Y); ctx.lineTo(canvas.width, FLOOR_Y);
+            ctx.moveTo(0, CEIL_Y); ctx.lineTo(canvas.width, CEIL_Y);
             ctx.stroke();
+
+            // Wave 궤적 잔상
+            if (playerMode === 'wave' && trail.length > 1) {
+                ctx.strokeStyle = "rgba(255, 0, 85, 0.6)";
+                ctx.lineWidth = 4;
+                ctx.beginPath();
+                ctx.moveTo(trail[0].x, trail[0].y);
+                for (let i = 1; i < trail.length; i++) {
+                    ctx.lineTo(trail[i].x, trail[i].y);
+                }
+                ctx.stroke();
+            }
+
+            // 포탈
+            for (let p of portals) {
+                ctx.fillStyle = p.targetMode === 'wave' ? "#ff00aa" : "#00ffff";
+                ctx.fillRect(p.x, p.y, p.width, p.height);
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = 2;
+                ctx.strokeRect(p.x, p.y, p.width, p.height);
+
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "10px sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText(p.targetMode.toUpperCase(), p.x + p.width / 2, p.y + p.height / 2);
+            }
 
             // 지형
             for (let t of terrains) {
-                ctx.fillStyle = "#0088ff";
+                ctx.fillStyle = playerMode === 'wave' ? "#8800ff" : "#0088ff";
                 ctx.fillRect(t.x, t.y, t.width, t.height);
-                ctx.strokeStyle = "#00ffff";
-                ctx.lineWidth = 2;
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = 1.5;
                 ctx.strokeRect(t.x, t.y, t.width, t.height);
-                ctx.fillStyle = "#ffffff";
-                ctx.fillRect(t.x, t.y, t.width, 3);
             }
 
-            // 가시
+            // 장애물 (가시 / 톱니바퀴)
             for (let obs of obstacles) {
                 if (obs.type === 'spike') {
                     ctx.fillStyle = "#ffaa00";
@@ -499,7 +574,14 @@ game_code = """
                     ctx.closePath();
                     ctx.fill();
                     ctx.strokeStyle = "#ffffff";
-                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                } else if (obs.type === 'saw') {
+                    ctx.fillStyle = "#ff3300";
+                    ctx.beginPath();
+                    ctx.arc(obs.x, obs.y, obs.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = "#ffffff";
+                    ctx.lineWidth = 2;
                     ctx.stroke();
                 }
             }
@@ -512,35 +594,50 @@ game_code = """
                     ctx.arc(coin.x, coin.y, coin.radius, 0, Math.PI * 2);
                     ctx.fill();
                     ctx.strokeStyle = "#ffffff";
-                    ctx.lineWidth = 1.5;
                     ctx.stroke();
                 }
             }
 
-            // 플레이어
+            // 플레이어 (Cube vs Wave Arrow)
             ctx.save();
             ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
             ctx.rotate(player.rotation);
 
-            ctx.fillStyle = "#00ffcc";
-            ctx.fillRect(-player.width / 2, -player.height / 2, player.width, player.height);
-            ctx.strokeStyle = "#ffffff";
-            ctx.lineWidth = 2;
-            ctx.strokeRect(-player.width / 2, -player.height / 2, player.width, player.height);
-
-            ctx.fillStyle = "#111";
-            ctx.fillRect(-5, -5, 4, 4);
-            ctx.fillRect(2, -5, 4, 4);
+            if (playerMode === 'cube') {
+                ctx.fillStyle = "#00ffcc";
+                ctx.fillRect(-player.width / 2, -player.height / 2, player.width, player.height);
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = 2;
+                ctx.strokeRect(-player.width / 2, -player.height / 2, player.width, player.height);
+                ctx.fillStyle = "#111";
+                ctx.fillRect(-5, -5, 4, 4);
+                ctx.fillRect(2, -5, 4, 4);
+            } else {
+                // Wave 모드 화살표
+                ctx.fillStyle = "#ff0055";
+                ctx.beginPath();
+                ctx.moveTo(14, 0);
+                ctx.lineTo(-10, -10);
+                ctx.lineTo(-4, 0);
+                ctx.lineTo(-10, 10);
+                ctx.closePath();
+                ctx.fill();
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+            }
 
             ctx.restore();
 
-            // 점수 UI
+            // UI
             ctx.fillStyle = "#ffffff";
             ctx.font = "16px sans-serif";
             ctx.textAlign = "left";
-            ctx.fillText("SCORE: " + score, 15, 30);
+            ctx.fillText("SCORE: " + score, 15, 20);
             ctx.fillStyle = "#ffd700";
-            ctx.fillText("🪙 COINS: " + coinsCollected, 160, 30);
+            ctx.fillText("🪙 COINS: " + coinsCollected, 160, 20);
+            ctx.fillStyle = playerMode === 'wave' ? "#ff0055" : "#00ffcc";
+            ctx.fillText("MODE: " + playerMode.toUpperCase(), 300, 20);
         }
 
         function loop() {
@@ -553,9 +650,7 @@ game_code = """
 
         function startGame() {
             initAudio();
-            if (audioCtx.state === "suspended") {
-                audioCtx.resume();
-            }
+            if (audioCtx.state === "suspended") audioCtx.resume();
             gameStarted = true;
             init();
             startBGM();
@@ -565,9 +660,7 @@ game_code = """
         function restartGame() {
             cancelAnimationFrame(animationFrameId);
             initAudio();
-            if (audioCtx.state === "suspended") {
-                audioCtx.resume();
-            }
+            if (audioCtx.state === "suspended") audioCtx.resume();
             init();
             startBGM();
             loop();
