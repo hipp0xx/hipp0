@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.title("📐 Geometry Dash (Cube, Wave & Ship Modes)")
+st.title("📐 Geometry Dash (Ship Thruster & 10s Portal Interval)")
 
 game_code = """
 <!DOCTYPE html>
@@ -19,8 +19,8 @@ game_code = """
             flex-direction: column;
         }
         canvas {
-            border: 2px solid #555;
-            background-color: #000;
+            border: 2px solid #333;
+            background-color: #050508;
         }
         #info {
             margin-top: 10px;
@@ -79,7 +79,7 @@ game_code = """
         <!-- 시작 화면 -->
         <div id="startOverlay" class="ui-overlay">
             <div class="title-text">GEOMETRY DASH</div>
-            <div class="sub-text">CUBE ⇄ WAVE ⇄ SHIP 3단 변신!</div>
+            <div class="sub-text">10초마다 포탈 등장 & 비행선 화염 브레스!</div>
             <div class="btn-container">
                 <button class="btn btn-start" onclick="startGame()">게임 시작 🚀</button>
             </div>
@@ -94,7 +94,7 @@ game_code = """
             </div>
         </div>
     </div>
-    <div id="info"><b>조작법:</b> CUBE(연속 점프) | WAVE(직선 대각 이동) | SHIP(부드러운 추진 상승)</div>
+    <div id="info"><b>조작법:</b> CUBE(연속 점프) | WAVE(직선 대각 이동) | SHIP(추진력 상승 & 브레스 연출)</div>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
@@ -103,8 +103,8 @@ game_code = """
         const gameOverOverlay = document.getElementById("gameOverOverlay");
         const finalScoreText = document.getElementById("finalScore");
 
-        const FLOOR_Y = 240;
-        const CEIL_Y = 30;
+        const FLOOR_Y = 270;
+        const CEIL_Y = 10;
 
         let audioCtx = null;
         let bgmInterval = null;
@@ -191,14 +191,13 @@ game_code = """
         let gameStarted = false;
         let gameOver = false;
         let score = 0;
-        let coinsCollected = 0;
         const gameSpeed = 5;
         const gravity = 0.58;
         const jumpForce = -9.2;
         const waveSpeedY = 6;
 
-        let playerMode = 'cube'; // 'cube', 'wave', 'ship'
-        let player, obstacles, terrains, portals, coins, trail, frameCount, animationFrameId;
+        let playerMode = 'cube';
+        let player, obstacles, terrains, portals, trail, flames, frameCount, animationFrameId;
         let isHolding = false;
 
         const modeSequence = ['wave', 'ship', 'cube'];
@@ -207,19 +206,18 @@ game_code = """
         function init() {
             gameOver = false;
             score = 0;
-            coinsCollected = 0;
             frameCount = 0;
             playerMode = 'cube';
             modeIndex = 0;
             obstacles = [];
             terrains = [];
             portals = [];
-            coins = [];
             trail = [];
+            flames = [];
 
             player = {
                 x: 80,
-                y: FLOOR_Y - 26,
+                y: FLOOR_Y - 24,
                 width: 24,
                 height: 24,
                 vy: 0,
@@ -241,15 +239,15 @@ game_code = """
         window.addEventListener("mouseup", () => { isHolding = false; });
 
         function spawnElements() {
-            // [포탈 스폰] 180프레임마다 순차적으로 다른 모드로 전환하는 포탈 생성
-            if (frameCount > 0 && frameCount % 180 === 0) {
+            // [포탈 스폰] 600프레임(약 10초) 주기 스폰
+            if (frameCount > 0 && frameCount % 600 === 0) {
                 const targetMode = modeSequence[modeIndex % modeSequence.length];
                 modeIndex++;
                 portals.push({
                     x: canvas.width,
-                    y: FLOOR_Y - 140,
+                    y: 100,
                     width: 35,
-                    height: 100,
+                    height: 110,
                     targetMode: targetMode
                 });
                 return;
@@ -284,9 +282,9 @@ game_code = """
                         });
                     }
                 } else if (playerMode === 'wave') {
-                    // 공중에 여러 개 떠있는 톱니바퀴 생성 (벽에 붙지 않음)
-                    const minY = CEIL_Y + 50;
-                    const maxY = FLOOR_Y - 50;
+                    // 공중 톱니바퀴
+                    const minY = CEIL_Y + 40;
+                    const maxY = FLOOR_Y - 40;
                     const randomY1 = minY + Math.random() * (maxY - minY - 40);
                     
                     obstacles.push({
@@ -300,25 +298,25 @@ game_code = """
                         obstacles.push({
                             type: 'saw',
                             x: canvas.width + 120,
-                            y: randomY1 > (CEIL_Y + FLOOR_Y) / 2 ? randomY1 - 60 : randomY1 + 60,
+                            y: randomY1 > (CEIL_Y + FLOOR_Y) / 2 ? randomY1 - 50 : randomY1 + 50,
                             radius: 20
                         });
                     }
                 } else if (playerMode === 'ship') {
-                    // 비행선 전용 장애물 (중간 기둥 및 공중 가시)
+                    // 비행선 전용 장애물
                     terrains.push({
                         type: 'pillar',
                         x: canvas.width,
-                        y: CEIL_Y,
+                        y: 0,
                         width: 40,
-                        height: 70
+                        height: 80
                     });
                     terrains.push({
                         type: 'pillar',
                         x: canvas.width,
-                        y: FLOOR_Y - 70,
+                        y: FLOOR_Y - 80,
                         width: 40,
-                        height: 70
+                        height: 80
                     });
                 }
             }
@@ -356,11 +354,19 @@ game_code = """
                     triggerGameOver();
                 }
             } else if (playerMode === 'ship') {
-                // 비행선 부드러운 가속 물리
                 if (isHolding) {
-                    player.vy -= 0.45; // 추진력
+                    player.vy -= 0.45;
+                    // 비행선 뒤 브레스 파티클 생성
+                    flames.push({
+                        x: player.x - 10,
+                        y: player.y + player.height / 2 + (Math.random() * 6 - 3),
+                        vx: - (Math.random() * 3 + 4),
+                        vy: Math.random() * 2 - 1,
+                        size: Math.random() * 6 + 4,
+                        life: 1.0
+                    });
                 } else {
-                    player.vy += 0.35; // 중력
+                    player.vy += 0.35;
                 }
                 player.vy = Math.max(-6, Math.min(6, player.vy));
                 player.y += player.vy;
@@ -371,13 +377,21 @@ game_code = """
                 }
             }
 
+            // 브레스 파티클 업데이트
+            for (let i = flames.length - 1; i >= 0; i--) {
+                const f = flames[i];
+                f.x += f.vx;
+                f.y += f.vy;
+                f.life -= 0.05;
+                if (f.life <= 0) flames.splice(i, 1);
+            }
+
             frameCount++;
             spawnElements();
 
             for (let t of terrains) t.x -= gameSpeed;
             for (let obs of obstacles) obs.x -= gameSpeed;
             for (let p of portals) p.x -= gameSpeed;
-            for (let coin of coins) coin.x -= gameSpeed;
             for (let tr of trail) tr.x -= gameSpeed;
 
             // 포탈 충돌
@@ -462,17 +476,6 @@ game_code = """
             ctx.clearRect(0, 0, canvas.width, canvas.height);
             if (!gameStarted) return;
 
-            ctx.fillStyle = "#222233";
-            ctx.fillRect(0, FLOOR_Y, canvas.width, canvas.height - FLOOR_Y);
-            ctx.fillRect(0, 0, canvas.width, CEIL_Y);
-
-            ctx.strokeStyle = playerMode === 'wave' ? "#ff0055" : (playerMode === 'ship' ? "#00ff66" : "#00ffff");
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(0, FLOOR_Y); ctx.lineTo(canvas.width, FLOOR_Y);
-            ctx.moveTo(0, CEIL_Y); ctx.lineTo(canvas.width, CEIL_Y);
-            ctx.stroke();
-
             // Wave 잔상
             if (playerMode === 'wave' && trail.length > 1) {
                 ctx.strokeStyle = "rgba(255, 0, 85, 0.6)";
@@ -481,6 +484,14 @@ game_code = """
                 ctx.moveTo(trail[0].x, trail[0].y);
                 for (let i = 1; i < trail.length; i++) ctx.lineTo(trail[i].x, trail[i].y);
                 ctx.stroke();
+            }
+
+            // 비행선 브레스 파티클 그리기
+            for (let f of flames) {
+                ctx.fillStyle = `rgba(255, ${Math.floor(f.life * 200)}, 0, ${f.life})`;
+                ctx.beginPath();
+                ctx.arc(f.x, f.y, f.size * f.life, 0, Math.PI * 2);
+                ctx.fill();
             }
 
             // 포탈
@@ -506,7 +517,7 @@ game_code = """
                 ctx.strokeRect(t.x, t.y, t.width, t.height);
             }
 
-            // 공중 톱니바퀴
+            // 장애물 (공중 톱니바퀴)
             for (let obs of obstacles) {
                 if (obs.type === 'saw') {
                     ctx.fillStyle = "#ff3300";
@@ -519,7 +530,7 @@ game_code = """
                 }
             }
 
-            // 플레이어 (Cube / Wave / Ship)
+            // 플레이어
             ctx.save();
             ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
             ctx.rotate(player.rotation);
@@ -543,7 +554,6 @@ game_code = """
                 ctx.lineWidth = 1.5;
                 ctx.stroke();
             } else if (playerMode === 'ship') {
-                // 비행선 모양
                 ctx.fillStyle = "#00ff66";
                 ctx.beginPath();
                 ctx.ellipse(0, 0, 14, 8, 0, 0, Math.PI * 2);
@@ -558,9 +568,9 @@ game_code = """
             ctx.fillStyle = "#ffffff";
             ctx.font = "16px sans-serif";
             ctx.textAlign = "left";
-            ctx.fillText("SCORE: " + score, 15, 20);
+            ctx.fillText("SCORE: " + score, 15, 25);
             ctx.fillStyle = playerMode === 'wave' ? "#ff0055" : (playerMode === 'ship' ? "#00ff66" : "#00ffcc");
-            ctx.fillText("MODE: " + playerMode.toUpperCase(), 150, 20);
+            ctx.fillText("MODE: " + playerMode.toUpperCase(), 150, 25);
         }
 
         function loop() {
