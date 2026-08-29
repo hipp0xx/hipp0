@@ -28,32 +28,60 @@ game_code = """
             font-size: 14px;
             color: #aaa;
         }
+        #restartBtn {
+            position: absolute;
+            top: 200px;
+            padding: 10px 20px;
+            font-size: 16px;
+            font-weight: bold;
+            color: white;
+            background-color: #ff0055;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            display: none;
+            z-index: 10;
+        }
+        #restartBtn:hover {
+            background-color: #ff3377;
+        }
     </style>
 </head>
 <body>
-    <canvas id="gameCanvas" width="600" height="300"></canvas>
+    <div style="position: relative; display: flex; justify-content: center; align-items: center;">
+        <canvas id="gameCanvas" width="600" height="300"></canvas>
+        <button id="restartBtn" onclick="resetGame()">다시 시작 🔄</button>
+    </div>
     <div id="info"><b>조작법:</b> 화면 클릭 또는 스페이스바 누르고 있기 (상승) / 떼기 (하강)</div>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
+        const restartBtn = document.getElementById("restartBtn");
 
         // 게임 변수
         let isPressing = false;
         let gameOver = false;
         let score = 0;
+        let player, obstacles, frameCount, animationFrameId;
 
-        // 플레이어 (Wave)
-        const player = {
-            x: 80,
-            y: canvas.height / 2,
-            size: 12,
-            speedY: 4
-        };
+        // 게임 초기화 함수
+        function init() {
+            isPressing = false;
+            gameOver = false;
+            score = 0;
+            frameCount = 0;
+            obstacles = [];
 
-        // 장애물
-        let obstacles = [];
-        let frameCount = 0;
+            player = {
+                x: 80,
+                y: canvas.height / 2,
+                size: 12,
+                speedY: 4
+            };
+
+            restartBtn.style.display = "none";
+        }
 
         // 입력을 감지하는 이벤트 리스너
         window.addEventListener("keydown", (e) => {
@@ -88,7 +116,7 @@ game_code = """
 
             // 천장/바닥 충돌 처리
             if (player.y - player.size < 0 || player.y + player.size > canvas.height) {
-                gameOver = true;
+                triggerGameOver();
             }
 
             // 장애물 생성 및 이동
@@ -108,7 +136,7 @@ game_code = """
                     player.y + player.size > obs.y &&
                     player.y - player.size < obs.y + obs.height
                 ) {
-                    gameOver = true;
+                    triggerGameOver();
                 }
             }
 
@@ -119,6 +147,11 @@ game_code = """
             }
 
             if (!gameOver) score++;
+        }
+
+        function triggerGameOver() {
+            gameOver = true;
+            restartBtn.style.display = "block";
         }
 
         function draw() {
@@ -143,6 +176,7 @@ game_code = """
             // 점수 표시
             ctx.fillStyle = "#ffffff";
             ctx.font = "18px sans-serif";
+            ctx.textAlign = "left";
             ctx.fillText("SCORE: " + score, 15, 30);
 
             // 게임 오버 메시지
@@ -153,11 +187,7 @@ game_code = """
                 ctx.fillStyle = "#ff3333";
                 ctx.font = "bold 30px sans-serif";
                 ctx.textAlign = "center";
-                ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 10);
-
-                ctx.fillStyle = "#ffffff";
-                ctx.font = "16px sans-serif";
-                ctx.fillText("새로고침(F5)을 누르면 다시 시작합니다", canvas.width / 2, canvas.height / 2 + 30);
+                ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 30);
             }
         }
 
@@ -165,10 +195,18 @@ game_code = """
             update();
             draw();
             if (!gameOver) {
-                requestAnimationFrame(loop);
+                animationFrameId = requestAnimationFrame(loop);
             }
         }
 
+        function resetGame() {
+            cancelAnimationFrame(animationFrameId);
+            init();
+            loop();
+        }
+
+        // 게임 시작
+        init();
         loop();
     </script>
 </body>
