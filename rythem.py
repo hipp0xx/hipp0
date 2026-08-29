@@ -1,9 +1,8 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.title("📐 Streamlit Geometry Dash (Guaranteed Portal Spawn)")
+st.title("📐 Geometry Dash (Cube, Wave & Ship Modes)")
 
-# HTML/JS 기반 게임 코드
 game_code = """
 <!DOCTYPE html>
 <html>
@@ -77,14 +76,16 @@ game_code = """
     <div style="position: relative; display: flex; justify-content: center; align-items: center;">
         <canvas id="gameCanvas" width="600" height="300"></canvas>
 
+        <!-- 시작 화면 -->
         <div id="startOverlay" class="ui-overlay">
             <div class="title-text">GEOMETRY DASH</div>
-            <div class="sub-text">시작 후 3초 뒤 포탈 등장!</div>
+            <div class="sub-text">CUBE ⇄ WAVE ⇄ SHIP 3단 변신!</div>
             <div class="btn-container">
                 <button class="btn btn-start" onclick="startGame()">게임 시작 🚀</button>
             </div>
         </div>
 
+        <!-- 게임 오버 화면 -->
         <div id="gameOverOverlay" class="ui-overlay" style="display: none;">
             <div class="title-text" style="color: #ff3333;">GAME OVER</div>
             <div id="finalScore" class="sub-text" style="color: #fff;">SCORE: 0</div>
@@ -93,7 +94,7 @@ game_code = """
             </div>
         </div>
     </div>
-    <div id="info"><b>조작법:</b> 홀드(클릭/스페이스바) - Cube: 연속 점프 | Wave: 대각선 상승 (떼면 하강)</div>
+    <div id="info"><b>조작법:</b> CUBE(연속 점프) | WAVE(직선 대각 이동) | SHIP(부드러운 추진 상승)</div>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
@@ -196,9 +197,12 @@ game_code = """
         const jumpForce = -9.2;
         const waveSpeedY = 6;
 
-        let playerMode = 'cube';
+        let playerMode = 'cube'; // 'cube', 'wave', 'ship'
         let player, obstacles, terrains, portals, coins, trail, frameCount, animationFrameId;
         let isHolding = false;
+
+        const modeSequence = ['wave', 'ship', 'cube'];
+        let modeIndex = 0;
 
         function init() {
             gameOver = false;
@@ -206,6 +210,7 @@ game_code = """
             coinsCollected = 0;
             frameCount = 0;
             playerMode = 'cube';
+            modeIndex = 0;
             obstacles = [];
             terrains = [];
             portals = [];
@@ -236,9 +241,10 @@ game_code = """
         window.addEventListener("mouseup", () => { isHolding = false; });
 
         function spawnElements() {
-            // [포탈 우선 스폰] 180프레임(약 3초) 마다 무조건 반대 모드 포탈 생성
+            // [포탈 스폰] 180프레임마다 순차적으로 다른 모드로 전환하는 포탈 생성
             if (frameCount > 0 && frameCount % 180 === 0) {
-                const targetMode = playerMode === 'cube' ? 'wave' : 'cube';
+                const targetMode = modeSequence[modeIndex % modeSequence.length];
+                modeIndex++;
                 portals.push({
                     x: canvas.width,
                     y: FLOOR_Y - 140,
@@ -249,8 +255,8 @@ game_code = """
                 return;
             }
 
-            // 일반 지형 및 장애물 스폰 (80프레임 주기)
-            if (frameCount % 80 === 0) {
+            // 장애물 및 지형 스폰 (60프레임 주기)
+            if (frameCount % 60 === 0) {
                 if (playerMode === 'cube') {
                     const rand = Math.random();
                     if (rand < 0.5) {
@@ -277,14 +283,42 @@ game_code = """
                             height: 22
                         });
                     }
-                } else {
-                    // Wave 모드 장애물
-                    const isTop = Math.random() > 0.5;
+                } else if (playerMode === 'wave') {
+                    // 공중에 여러 개 떠있는 톱니바퀴 생성 (벽에 붙지 않음)
+                    const minY = CEIL_Y + 50;
+                    const maxY = FLOOR_Y - 50;
+                    const randomY1 = minY + Math.random() * (maxY - minY - 40);
+                    
                     obstacles.push({
                         type: 'saw',
                         x: canvas.width,
-                        y: isTop ? CEIL_Y + 20 : FLOOR_Y - 30,
-                        radius: 22
+                        y: randomY1,
+                        radius: 20
+                    });
+
+                    if (Math.random() > 0.4) {
+                        obstacles.push({
+                            type: 'saw',
+                            x: canvas.width + 120,
+                            y: randomY1 > (CEIL_Y + FLOOR_Y) / 2 ? randomY1 - 60 : randomY1 + 60,
+                            radius: 20
+                        });
+                    }
+                } else if (playerMode === 'ship') {
+                    // 비행선 전용 장애물 (중간 기둥 및 공중 가시)
+                    terrains.push({
+                        type: 'pillar',
+                        x: canvas.width,
+                        y: CEIL_Y,
+                        width: 40,
+                        height: 70
+                    });
+                    terrains.push({
+                        type: 'pillar',
+                        x: canvas.width,
+                        y: FLOOR_Y - 70,
+                        width: 40,
+                        height: 70
                     });
                 }
             }
@@ -321,6 +355,20 @@ game_code = """
                 if (player.y <= CEIL_Y || player.y + player.height >= FLOOR_Y) {
                     triggerGameOver();
                 }
+            } else if (playerMode === 'ship') {
+                // 비행선 부드러운 가속 물리
+                if (isHolding) {
+                    player.vy -= 0.45; // 추진력
+                } else {
+                    player.vy += 0.35; // 중력
+                }
+                player.vy = Math.max(-6, Math.min(6, player.vy));
+                player.y += player.vy;
+                player.rotation = player.vy * 0.08;
+
+                if (player.y <= CEIL_Y || player.y + player.height >= FLOOR_Y) {
+                    triggerGameOver();
+                }
             }
 
             frameCount++;
@@ -348,7 +396,7 @@ game_code = """
                 }
             }
 
-            // Cube 지형 충돌
+            // 지형 충돌
             if (playerMode === 'cube') {
                 player.isGrounded = false;
                 for (let t of terrains) {
@@ -373,20 +421,22 @@ game_code = """
                     player.vy = 0;
                     player.isGrounded = true;
                 }
+            } else {
+                for (let t of terrains) {
+                    if (
+                        player.x + player.width > t.x &&
+                        player.x < t.x + t.width &&
+                        player.y + player.height > t.y &&
+                        player.y < t.y + t.height
+                    ) {
+                        triggerGameOver();
+                    }
+                }
             }
 
             // 장애물 충돌
             for (let obs of obstacles) {
-                if (obs.type === 'spike') {
-                    if (
-                        player.x + player.width > obs.x + 4 &&
-                        player.x < obs.x + obs.width - 4 &&
-                        player.y + player.height > obs.y + 4 &&
-                        player.y < obs.y + obs.height
-                    ) {
-                        triggerGameOver();
-                    }
-                } else if (obs.type === 'saw') {
+                if (obs.type === 'saw') {
                     const dist = Math.hypot((player.x + player.width / 2) - obs.x, (player.y + player.height / 2) - obs.y);
                     if (dist < player.width / 2 + obs.radius - 2) {
                         triggerGameOver();
@@ -416,7 +466,7 @@ game_code = """
             ctx.fillRect(0, FLOOR_Y, canvas.width, canvas.height - FLOOR_Y);
             ctx.fillRect(0, 0, canvas.width, CEIL_Y);
 
-            ctx.strokeStyle = playerMode === 'wave' ? "#ff0055" : "#00ffff";
+            ctx.strokeStyle = playerMode === 'wave' ? "#ff0055" : (playerMode === 'ship' ? "#00ff66" : "#00ffff");
             ctx.lineWidth = 3;
             ctx.beginPath();
             ctx.moveTo(0, FLOOR_Y); ctx.lineTo(canvas.width, FLOOR_Y);
@@ -433,9 +483,9 @@ game_code = """
                 ctx.stroke();
             }
 
-            // 포탈 그려주기 (강조 효과)
+            // 포탈
             for (let p of portals) {
-                ctx.fillStyle = p.targetMode === 'wave' ? "#ff00aa" : "#00ffff";
+                ctx.fillStyle = p.targetMode === 'wave' ? "#ff00aa" : (p.targetMode === 'ship' ? "#00ff66" : "#00ffff");
                 ctx.fillRect(p.x, p.y, p.width, p.height);
                 ctx.strokeStyle = "#ffffff";
                 ctx.lineWidth = 3;
@@ -456,7 +506,7 @@ game_code = """
                 ctx.strokeRect(t.x, t.y, t.width, t.height);
             }
 
-            // 장애물
+            // 공중 톱니바퀴
             for (let obs of obstacles) {
                 if (obs.type === 'saw') {
                     ctx.fillStyle = "#ff3300";
@@ -469,7 +519,7 @@ game_code = """
                 }
             }
 
-            // 플레이어
+            // 플레이어 (Cube / Wave / Ship)
             ctx.save();
             ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
             ctx.rotate(player.rotation);
@@ -480,7 +530,7 @@ game_code = """
                 ctx.strokeStyle = "#ffffff";
                 ctx.lineWidth = 2;
                 ctx.strokeRect(-player.width / 2, -player.height / 2, player.width, player.height);
-            } else {
+            } else if (playerMode === 'wave') {
                 ctx.fillStyle = "#ff0055";
                 ctx.beginPath();
                 ctx.moveTo(14, 0);
@@ -492,6 +542,15 @@ game_code = """
                 ctx.strokeStyle = "#ffffff";
                 ctx.lineWidth = 1.5;
                 ctx.stroke();
+            } else if (playerMode === 'ship') {
+                // 비행선 모양
+                ctx.fillStyle = "#00ff66";
+                ctx.beginPath();
+                ctx.ellipse(0, 0, 14, 8, 0, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.strokeStyle = "#ffffff";
+                ctx.lineWidth = 2;
+                ctx.stroke();
             }
             ctx.restore();
 
@@ -500,7 +559,7 @@ game_code = """
             ctx.font = "16px sans-serif";
             ctx.textAlign = "left";
             ctx.fillText("SCORE: " + score, 15, 20);
-            ctx.fillStyle = playerMode === 'wave' ? "#ff0055" : "#00ffcc";
+            ctx.fillStyle = playerMode === 'wave' ? "#ff0055" : (playerMode === 'ship' ? "#00ff66" : "#00ffcc");
             ctx.fillText("MODE: " + playerMode.toUpperCase(), 150, 20);
         }
 
