@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.title("📐 Geometry Dash (Custom Obstacles & Thin Floor)")
+st.title("📐 Geometry Dash (Rings & Pads Added)")
 
 game_code = """
 <!DOCTYPE html>
@@ -79,7 +79,7 @@ game_code = """
         <!-- 시작 화면 -->
         <div id="startOverlay" class="ui-overlay">
             <div class="title-text">GEOMETRY DASH</div>
-            <div class="sub-text">7초 포탈 & 3연속 가시 등장!</div>
+            <div class="sub-text">공중 점프링(공점) & 점프 발판 추가!</div>
             <div class="btn-container">
                 <button class="btn btn-start" onclick="startGame()">게임 시작 🚀</button>
             </div>
@@ -94,7 +94,7 @@ game_code = """
             </div>
         </div>
     </div>
-    <div id="info"><b>조작법:</b> CUBE(연속 점프) | WAVE(직선 대각 이동) | SHIP(추진력 상승 & 브레스 연출)</div>
+    <div id="info"><b>조작법:</b> CUBE(점프 / 공점 근처에서 클릭 시 공중 점프) | WAVE(대각 이동)</div>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
@@ -194,13 +194,16 @@ game_code = """
         const gameSpeed = 5;
         const gravity = 0.58;
         const jumpForce = -9.2;
+        const padJumpForce = -12.0;
+        const ringJumpForce = -10.5;
         const waveSpeedY = 6;
 
         let playerMode = 'cube';
-        let player, obstacles, terrains, portals, trail, flames, frameCount, animationFrameId;
+        let player, obstacles, terrains, interactiveElements, portals, trail, frameCount, animationFrameId;
         let isHolding = false;
+        let justPressed = false;
 
-        const modeSequence = ['wave', 'ship', 'cube'];
+        const modeSequence = ['wave', 'cube'];
         let modeIndex = 0;
 
         function init() {
@@ -211,9 +214,9 @@ game_code = """
             modeIndex = 0;
             obstacles = [];
             terrains = [];
+            interactiveElements = [];
             portals = [];
             trail = [];
-            flames = [];
 
             player = {
                 x: 80,
@@ -230,16 +233,22 @@ game_code = """
         }
 
         window.addEventListener("keydown", (e) => {
-            if (e.code === "Space" || e.code === "ArrowUp") isHolding = true;
+            if (e.code === "Space" || e.code === "ArrowUp") {
+                if (!isHolding) justPressed = true;
+                isHolding = true;
+            }
         });
         window.addEventListener("keyup", (e) => {
             if (e.code === "Space" || e.code === "ArrowUp") isHolding = false;
         });
-        canvas.addEventListener("mousedown", () => { isHolding = true; });
+        canvas.addEventListener("mousedown", () => {
+            if (!isHolding) justPressed = true;
+            isHolding = true;
+        });
         window.addEventListener("mouseup", () => { isHolding = false; });
 
         function spawnElements() {
-            // [포탈 스폰] 420프레임(약 7초) 주기 스폰
+            // [포탈 스폰] 420프레임(약 7초) 주기
             if (frameCount > 0 && frameCount % 420 === 0) {
                 const targetMode = modeSequence[modeIndex % modeSequence.length];
                 modeIndex++;
@@ -253,22 +262,48 @@ game_code = """
                 return;
             }
 
-            // 장애물 및 지형 스폰 (65프레임 주기)
+            // 스폰 패턴 제어 (65프레임 주기)
             if (frameCount % 65 === 0) {
                 if (playerMode === 'cube') {
                     const rand = Math.random();
 
-                    if (rand < 0.4) {
-                        // 가로 구조물
+                    if (rand < 0.3) {
+                        // 가로 구조물 + 위쪽에 공점(Ring) 배치
                         terrains.push({
                             type: 'structure',
                             x: canvas.width,
-                            y: FLOOR_Y - 50,
-                            width: 140,
+                            y: FLOOR_Y - 55,
+                            width: 130,
                             height: 20
                         });
-                    } else if (rand < 0.85) {
-                        // 1개 또는 2개 가시
+                        interactiveElements.push({
+                            type: 'ring',
+                            x: canvas.width + 65,
+                            y: FLOOR_Y - 105,
+                            radius: 12,
+                            used: false
+                        });
+                    } else if (rand < 0.55) {
+                        // 지상 발판(Pad) + 가시 장애물 구조
+                        interactiveElements.push({
+                            type: 'pad',
+                            x: canvas.width + 10,
+                            y: FLOOR_Y - 6,
+                            width: 28,
+                            height: 6
+                        });
+                        const spikeW = 20;
+                        for (let i = 0; i < 2; i++) {
+                            obstacles.push({
+                                type: 'spike',
+                                x: canvas.width + 70 + (i * spikeW),
+                                y: FLOOR_Y - 22,
+                                width: spikeW,
+                                height: 22
+                            });
+                        }
+                    } else if (rand < 0.8) {
+                        // 1~2개 가시
                         const count = Math.random() > 0.5 ? 1 : 2;
                         const spikeW = 20;
                         for (let i = 0; i < count; i++) {
@@ -281,7 +316,14 @@ game_code = """
                             });
                         }
                     } else {
-                        // 아주 가끔 나오는 3개짜리 가시 (넘을 수 있는 타이밍 배치)
+                        // 3연속 가시 + 앞쪽 공점(Ring)으로 점프 유도
+                        interactiveElements.push({
+                            type: 'ring',
+                            x: canvas.width - 25,
+                            y: FLOOR_Y - 65,
+                            radius: 12,
+                            used: false
+                        });
                         const spikeW = 18;
                         for (let i = 0; i < 3; i++) {
                             obstacles.push({
@@ -294,11 +336,11 @@ game_code = """
                         }
                     }
                 } else if (playerMode === 'wave') {
-                    // 공중 톱니바퀴
+                    // WAVE 모드: 공중 톱니바퀴
                     const minY = CEIL_Y + 40;
                     const maxY = FLOOR_Y - 40;
                     const randomY1 = minY + Math.random() * (maxY - minY - 40);
-                    
+
                     obstacles.push({
                         type: 'saw',
                         x: canvas.width,
@@ -314,22 +356,6 @@ game_code = """
                             radius: 20
                         });
                     }
-                } else if (playerMode === 'ship') {
-                    // 비행선 전용 기둥 장애물
-                    terrains.push({
-                        type: 'pillar',
-                        x: canvas.width,
-                        y: 0,
-                        width: 40,
-                        height: 80
-                    });
-                    terrains.push({
-                        type: 'pillar',
-                        x: canvas.width,
-                        y: FLOOR_Y - 80,
-                        width: 40,
-                        height: 80
-                    });
                 }
             }
         }
@@ -338,10 +364,29 @@ game_code = """
             if (!gameStarted || gameOver) return;
 
             if (playerMode === 'cube') {
+                // 일반 바닥 점프
                 if (isHolding && player.isGrounded) {
                     player.vy = jumpForce;
                     player.isGrounded = false;
                 }
+
+                // 공중 점프링(Ring) 터치 상호작용
+                if (justPressed) {
+                    for (let el of interactiveElements) {
+                        if (el.type === 'ring' && !el.used) {
+                            const pCenterX = player.x + player.width / 2;
+                            const pCenterY = player.y + player.height / 2;
+                            const dist = Math.hypot(pCenterX - el.x, pCenterY - el.y);
+                            if (dist < el.radius + 22) {
+                                player.vy = ringJumpForce;
+                                player.isGrounded = false;
+                                el.used = true;
+                                break;
+                            }
+                        }
+                    }
+                }
+
                 player.vy += gravity;
                 player.y += player.vy;
 
@@ -365,36 +410,6 @@ game_code = """
                 if (player.y <= CEIL_Y || player.y + player.height >= FLOOR_Y) {
                     triggerGameOver();
                 }
-            } else if (playerMode === 'ship') {
-                if (isHolding) {
-                    player.vy -= 0.45;
-                    flames.push({
-                        x: player.x - 10,
-                        y: player.y + player.height / 2 + (Math.random() * 6 - 3),
-                        vx: - (Math.random() * 3 + 4),
-                        vy: Math.random() * 2 - 1,
-                        size: Math.random() * 6 + 4,
-                        life: 1.0
-                    });
-                } else {
-                    player.vy += 0.35;
-                }
-                player.vy = Math.max(-6, Math.min(6, player.vy));
-                player.y += player.vy;
-                player.rotation = player.vy * 0.08;
-
-                if (player.y <= CEIL_Y || player.y + player.height >= FLOOR_Y) {
-                    triggerGameOver();
-                }
-            }
-
-            // 브레스 파티클 업데이트
-            for (let i = flames.length - 1; i >= 0; i--) {
-                const f = flames[i];
-                f.x += f.vx;
-                f.y += f.vy;
-                f.life -= 0.05;
-                if (f.life <= 0) flames.splice(i, 1);
             }
 
             frameCount++;
@@ -402,6 +417,7 @@ game_code = """
 
             for (let t of terrains) t.x -= gameSpeed;
             for (let obs of obstacles) obs.x -= gameSpeed;
+            for (let el of interactiveElements) el.x -= gameSpeed;
             for (let p of portals) p.x -= gameSpeed;
             for (let tr of trail) tr.x -= gameSpeed;
 
@@ -421,9 +437,26 @@ game_code = """
                 }
             }
 
-            // 지형 충돌
+            // 지형 및 발판(Pad) 상호작용 Check
             if (playerMode === 'cube') {
                 player.isGrounded = false;
+
+                // 점프 발판(Pad) 접촉 판정
+                for (let el of interactiveElements) {
+                    if (el.type === 'pad') {
+                        if (
+                            player.x + player.width > el.x &&
+                            player.x < el.x + el.width &&
+                            player.y + player.height >= el.y &&
+                            player.y + player.height <= el.y + el.height + 8
+                        ) {
+                            player.vy = padJumpForce;
+                            player.isGrounded = false;
+                        }
+                    }
+                }
+
+                // 가로 구조물 지형
                 for (let t of terrains) {
                     const pRight = player.x + player.width;
                     const pLeft = player.x;
@@ -462,7 +495,6 @@ game_code = """
             // 장애물 충돌 (가시 & 톱니바퀴)
             for (let obs of obstacles) {
                 if (obs.type === 'spike') {
-                    // 히트박스를 살짝 여유있게 조정하여 3연속 가시 점프가 가능하도록 함
                     if (
                         player.x + player.width - 4 > obs.x + 3 &&
                         player.x + 4 < obs.x + obs.width - 3 &&
@@ -478,11 +510,14 @@ game_code = """
                 }
             }
 
+            // 화면 밖 제거
             if (terrains.length > 0 && terrains[0].x + 300 < 0) terrains.shift();
             if (obstacles.length > 0 && obstacles[0].x + 100 < 0) obstacles.shift();
+            if (interactiveElements.length > 0 && interactiveElements[0].x + 100 < 0) interactiveElements.shift();
             if (portals.length > 0 && portals[0].x + 100 < 0) portals.shift();
 
             if (!gameOver) score += Math.floor(gameSpeed / 3);
+            justPressed = false;
         }
 
         function triggerGameOver() {
@@ -510,21 +545,13 @@ game_code = """
                 ctx.lineWidth = 4;
                 ctx.beginPath();
                 ctx.moveTo(trail[0].x, trail[0].y);
-                for (let i = 1; i < trail.length; i++) ctx.lineTo(trail[i].x, trail[i].y);
+                for (let i = 1; i < trail.length; i++) ctx.lineTo(trail[i].x, tr.y);
                 ctx.stroke();
-            }
-
-            // 비행선 브레스 파티클
-            for (let f of flames) {
-                ctx.fillStyle = `rgba(255, ${Math.floor(f.life * 200)}, 0, ${f.life})`;
-                ctx.beginPath();
-                ctx.arc(f.x, f.y, f.size * f.life, 0, Math.PI * 2);
-                ctx.fill();
             }
 
             // 포탈
             for (let p of portals) {
-                ctx.fillStyle = p.targetMode === 'wave' ? "#ff00aa" : (p.targetMode === 'ship' ? "#00ff66" : "#00ffff");
+                ctx.fillStyle = p.targetMode === 'wave' ? "#ff00aa" : "#00ffff";
                 ctx.fillRect(p.x, p.y, p.width, p.height);
                 ctx.strokeStyle = "#ffffff";
                 ctx.lineWidth = 3;
@@ -536,13 +563,36 @@ game_code = """
                 ctx.fillText(p.targetMode.toUpperCase(), p.x + p.width / 2, p.y + p.height / 2);
             }
 
-            // 지형 (가로 구조물)
+            // 구조물 지형
             for (let t of terrains) {
                 ctx.fillStyle = "#0088ff";
                 ctx.fillRect(t.x, t.y, t.width, t.height);
                 ctx.strokeStyle = "#ffffff";
                 ctx.lineWidth = 1.5;
                 ctx.strokeRect(t.x, t.y, t.width, t.height);
+            }
+
+            // 공점(Ring) 및 점프 발판(Pad)
+            for (let el of interactiveElements) {
+                if (el.type === 'ring') {
+                    ctx.strokeStyle = el.used ? "#888888" : "#ffe600";
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.arc(el.x, el.y, el.radius, 0, Math.PI * 2);
+                    ctx.stroke();
+
+                    // 내부에 미세한 점 표시
+                    ctx.fillStyle = el.used ? "#555555" : "#ffffff";
+                    ctx.beginPath();
+                    ctx.arc(el.x, el.y, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                } else if (el.type === 'pad') {
+                    ctx.fillStyle = "#ffe600";
+                    ctx.fillRect(el.x, el.y, el.width, el.height);
+                    ctx.strokeStyle = "#ffffff";
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(el.x, el.y, el.width, el.height);
+                }
             }
 
             // 장애물 (가시 & 톱니바퀴)
@@ -592,23 +642,15 @@ game_code = """
                 ctx.strokeStyle = "#ffffff";
                 ctx.lineWidth = 1.5;
                 ctx.stroke();
-            } else if (playerMode === 'ship') {
-                ctx.fillStyle = "#00ff66";
-                ctx.beginPath();
-                ctx.ellipse(0, 0, 14, 8, 0, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.strokeStyle = "#ffffff";
-                ctx.lineWidth = 2;
-                ctx.stroke();
             }
             ctx.restore();
 
-            // UI
+            // 점수 및 현재 모드 UI
             ctx.fillStyle = "#ffffff";
             ctx.font = "16px sans-serif";
             ctx.textAlign = "left";
             ctx.fillText("SCORE: " + score, 15, 25);
-            ctx.fillStyle = playerMode === 'wave' ? "#ff0055" : (playerMode === 'ship' ? "#00ff66" : "#00ffcc");
+            ctx.fillStyle = playerMode === 'wave' ? "#ff0055" : "#00ffcc";
             ctx.fillText("MODE: " + playerMode.toUpperCase(), 150, 25);
         }
 
