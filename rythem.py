@@ -28,48 +28,92 @@ game_code = """
             font-size: 14px;
             color: #aaa;
         }
-        .btn {
+        .ui-overlay {
             position: absolute;
-            top: 180px;
-            padding: 12px 28px;
-            font-size: 18px;
+            top: 0;
+            left: 0;
+            width: 600px;
+            height: 300px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.7);
+            z-index: 10;
+        }
+        .btn-container {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        .btn {
+            padding: 10px 20px;
+            font-size: 16px;
             font-weight: bold;
             color: white;
             border: none;
-            border-radius: 8px;
+            border-radius: 6px;
             cursor: pointer;
-            z-index: 10;
+            transition: 0.2s;
         }
-        #startBtn {
-            background-color: #00cc66;
+        .btn-easy { background-color: #00cc66; }
+        .btn-easy:hover { background-color: #00ff80; }
+        .btn-hard { background-color: #ff9900; }
+        .btn-hard:hover { background-color: #ffbb33; }
+        .btn-extreme { background-color: #ff0055; }
+        .btn-extreme:hover { background-color: #ff3377; }
+        .btn-restart { background-color: #0099ff; }
+        .btn-restart:hover { background-color: #33b5ff; }
+        .btn-change { background-color: #888; }
+        .btn-change:hover { background-color: #aaa; }
+        .title-text {
+            font-size: 26px;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 5px;
         }
-        #startBtn:hover {
-            background-color: #00ff80;
-        }
-        #restartBtn {
-            background-color: #ff0055;
-            display: none;
-        }
-        #restartBtn:hover {
-            background-color: #ff3377;
+        .sub-text {
+            font-size: 14px;
+            color: #00ffff;
+            margin-bottom: 15px;
         }
     </style>
 </head>
 <body>
     <div style="position: relative; display: flex; justify-content: center; align-items: center;">
         <canvas id="gameCanvas" width="600" height="300"></canvas>
-        <button id="startBtn" class="btn" onclick="startGame()">게임 시작 ▶</button>
-        <button id="restartBtn" class="btn" onclick="resetGame()">다시 시작 🔄</button>
+
+        <!-- 난이도 선택 (시작) 화면 -->
+        <div id="startOverlay" class="ui-overlay">
+            <div class="title-text">GEOMETRY DASH</div>
+            <div class="sub-text">WAVE MODE - 난이도를 선택하세요</div>
+            <div class="btn-container">
+                <button class="btn btn-easy" onclick="selectDifficulty('easy')">1단계: 이지</button>
+                <button class="btn btn-hard" onclick="selectDifficulty('hard')">2단계: 하드</button>
+                <button class="btn btn-extreme" onclick="selectDifficulty('extreme')">3단계: 종결</button>
+            </div>
+        </div>
+
+        <!-- 게임 오버 화면 -->
+        <div id="gameOverOverlay" class="ui-overlay" style="display: none;">
+            <div class="title-text" style="color: #ff3333;">GAME OVER</div>
+            <div id="finalScore" class="sub-text" style="color: #fff;">SCORE: 0</div>
+            <div class="btn-container">
+                <button class="btn btn-restart" onclick="restartSameDifficulty()">다시 시작 🔄</button>
+                <button class="btn btn-change" onclick="showDifficultySelect()">모드 변경 ⚙️</button>
+            </div>
+        </div>
     </div>
     <div id="info"><b>조작법:</b> 화면 클릭 또는 스페이스바 누르고 있기 (상승) / 떼기 (하강)</div>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
-        const startBtn = document.getElementById("startBtn");
-        const restartBtn = document.getElementById("restartBtn");
+        const startOverlay = document.getElementById("startOverlay");
+        const gameOverOverlay = document.getElementById("gameOverOverlay");
+        const finalScoreText = document.getElementById("finalScore");
 
-        // Web Audio API 설정 (피아노 + 바이올린 BGM)
+        // Web Audio API 설정
         let audioCtx = null;
         let bgmInterval = null;
 
@@ -131,7 +175,7 @@ game_code = """
             osc.stop(time + duration);
         }
 
-        function startBGM() {
+        function startBGM(speedMode) {
             if (!audioCtx) return;
             stopBGM();
 
@@ -147,6 +191,10 @@ game_code = """
             ];
 
             let step = 0;
+            // 종결 모드일 때는 BGM 템포도 함께 빨라짐
+            let tempo = 120;
+            if (speedMode === 'hard') tempo = 90;
+            if (speedMode === 'extreme') tempo = 60;
 
             bgmInterval = setInterval(() => {
                 if (!audioCtx || audioCtx.state === "suspended") return;
@@ -162,7 +210,7 @@ game_code = """
                 }
 
                 step++;
-            }, 120);
+            }, tempo);
         }
 
         function stopBGM() {
@@ -176,32 +224,42 @@ game_code = """
         let isPressing = false;
         let gameStarted = false;
         let gameOver = false;
+        let currentMode = 'easy';
         let score = 0;
         let coinsCollected = 0;
         let gameSpeed = 5;
-        let player, obstacles, coins, portals, frameCount, animationFrameId;
+        let player, obstacles, coins, frameCount, animationFrameId;
         let trail = [];
 
-        function init() {
+        function init(mode) {
+            currentMode = mode;
             isPressing = false;
             gameOver = false;
             score = 0;
             coinsCollected = 0;
-            gameSpeed = 5;
             frameCount = 0;
             obstacles = [];
             coins = [];
-            portals = [];
             trail = [];
+
+            // 난이도별 속도 설정
+            if (mode === 'easy') {
+                gameSpeed = 5;
+            } else if (mode === 'hard') {
+                gameSpeed = 8;
+            } else if (mode === 'extreme') {
+                gameSpeed = 14; // 종결 모드: 매 초고속 이동
+            }
 
             player = {
                 x: 80,
                 y: canvas.height / 2,
                 size: 10,
-                speedY: 4
+                speedY: gameSpeed * 0.8 // 플레이어 이동 반응성 연동
             };
 
-            restartBtn.style.display = "none";
+            gameOverOverlay.style.display = "none";
+            startOverlay.style.display = "none";
         }
 
         // 입력 이벤트
@@ -214,23 +272,11 @@ game_code = """
         canvas.addEventListener("mousedown", () => isPressing = true);
         canvas.addEventListener("mouseup", () => isPressing = false);
 
-        // 장애물 생성 알고리즘 (다양한 타입 지원)
         function spawnElements() {
             const rand = Math.random();
 
-            if (rand < 0.20) {
-                // 1. 배속 포탈
-                const isFast = gameSpeed <= 5;
-                portals.push({
-                    x: canvas.width,
-                    y: Math.random() * (canvas.height - 100) + 50,
-                    width: 20,
-                    height: 60,
-                    type: isFast ? 'fast' : 'slow',
-                    active: true
-                });
-            } else if (rand < 0.40) {
-                // 2. [NEW] 움직이는 톱니바퀴 (Sawblade)
+            if (rand < 0.35) {
+                // 1. 움직이는 톱니바퀴
                 const baseCircleY = Math.random() * (canvas.height - 120) + 60;
                 obstacles.push({
                     type: 'sawblade',
@@ -240,12 +286,12 @@ game_code = """
                     radius: 20,
                     angle: 0,
                     moveOffset: 0,
-                    moveSpeed: 0.05, // 상하 움직임 속도
-                    moveRange: 40    // 상하 움직임 범위
+                    moveSpeed: 0.05,
+                    moveRange: 40
                 });
-            } else if (rand < 0.60) {
-                // 3. [NEW] 거대한 구조물 (Gate/Giant Pillar - 중앙 통로 제외 통곡의 벽)
-                const gapHeight = 90; // 통과할 공간
+            } else if (rand < 0.65) {
+                // 2. 거대 조형물
+                const gapHeight = currentMode === 'extreme' ? 100 : 85;
                 const gapY = Math.random() * (canvas.height - gapHeight - 40) + 20;
                 obstacles.push({
                     type: 'giant_pillar',
@@ -254,8 +300,8 @@ game_code = """
                     gapY: gapY,
                     gapHeight: gapHeight
                 });
-            } else if (rand < 0.80) {
-                // 4. 일반 블록 / 가시
+            } else if (rand < 0.85) {
+                // 3. 일반 블록 / 가시
                 const isSpike = Math.random() > 0.5;
                 if (isSpike) {
                     const y = Math.random() * (canvas.height - 100) + 50;
@@ -266,7 +312,7 @@ game_code = """
                     obstacles.push({ type: 'block', x: canvas.width, y: y, width: 35, height: h });
                 }
             } else {
-                // 5. 天/地 블록
+                // 4. 천장/바닥 장애물
                 const isTop = Math.random() > 0.5;
                 const h = Math.random() * 80 + 40;
                 obstacles.push({
@@ -278,7 +324,7 @@ game_code = """
                 });
             }
 
-            // 골드 코인 생성
+            // 코인 생성
             if (Math.random() > 0.5) {
                 const coinY = Math.random() * (canvas.height - 80) + 40;
                 coins.push({
@@ -293,14 +339,14 @@ game_code = """
         function update() {
             if (!gameStarted || gameOver) return;
 
-            const currentSpeedY = player.speedY * (gameSpeed / 5);
+            const currentSpeedY = player.speedY;
             if (isPressing) {
                 player.y -= currentSpeedY;
             } else {
                 player.y += currentSpeedY;
             }
 
-            // 플레이어 잔상
+            // 잔상
             trail.push({ x: player.x, y: player.y });
             for (let i = 0; i < trail.length; i++) {
                 trail[i].x -= gameSpeed;
@@ -315,25 +361,18 @@ game_code = """
             }
 
             frameCount++;
-            if (frameCount % 45 === 0) {
+            // 종결 모드일수록 장애물이 더 빠르게 스폰됨
+            const spawnInterval = currentMode === 'extreme' ? 25 : (currentMode === 'hard' ? 35 : 45);
+            if (frameCount % spawnInterval === 0) {
                 spawnElements();
             }
 
-            // 장애물 업데이트 및 충돌 검사
+            // 장애물 이동 및 충돌 판정
             for (let i = 0; i < obstacles.length; i++) {
                 let obs = obstacles[i];
                 obs.x -= gameSpeed;
 
-                if (obs.type === 'block') {
-                    if (
-                        player.x + player.size > obs.x &&
-                        player.x - player.size < obs.x + obs.width &&
-                        player.y + player.size > obs.y &&
-                        player.y - player.size < obs.y + obs.height
-                    ) {
-                        triggerGameOver();
-                    }
-                } else if (obs.type === 'spike') {
+                if (obs.type === 'block' || obs.type === 'spike') {
                     if (
                         player.x + player.size > obs.x &&
                         player.x - player.size < obs.x + obs.width &&
@@ -343,18 +382,15 @@ game_code = """
                         triggerGameOver();
                     }
                 } else if (obs.type === 'sawblade') {
-                    // 톱니바퀴 자체 회전 및 위아래 상하운동
-                    obs.angle += 0.1;
+                    obs.angle += 0.15;
                     obs.moveOffset += obs.moveSpeed;
                     obs.y = obs.baseY + Math.sin(obs.moveOffset) * obs.moveRange;
 
-                    // 원형-원형 충돌 판정
                     const dist = Math.hypot(player.x - obs.x, player.y - obs.y);
                     if (dist < player.size + obs.radius) {
                         triggerGameOver();
                     }
                 } else if (obs.type === 'giant_pillar') {
-                    // 거대 조형물 (통로 공간 외의 상/하 기둥과 충돌)
                     if (player.x + player.size > obs.x && player.x - player.size < obs.x + obs.width) {
                         if (player.y - player.size < obs.gapY || player.y + player.size > obs.gapY + obs.gapHeight) {
                             triggerGameOver();
@@ -363,23 +399,7 @@ game_code = """
                 }
             }
 
-            // 포탈 업데이트
-            for (let i = 0; i < portals.length; i++) {
-                let p = portals[i];
-                p.x -= gameSpeed;
-
-                if (p.active &&
-                    player.x + player.size > p.x &&
-                    player.x - player.size < p.x + p.width &&
-                    player.y + player.size > p.y &&
-                    player.y - player.size < p.y + p.height
-                ) {
-                    p.active = false;
-                    gameSpeed = p.type === 'fast' ? 8 : 5;
-                }
-            }
-
-            // 코인 업데이트
+            // 코인 이동
             for (let i = 0; i < coins.length; i++) {
                 let coin = coins[i];
                 coin.x -= gameSpeed;
@@ -394,35 +414,25 @@ game_code = """
                 }
             }
 
-            // 화면을 벗어난 장애물 정리
             if (obstacles.length > 0 && obstacles[0].x + 60 < 0) obstacles.shift();
-            if (portals.length > 0 && portals[0].x + portals[0].width < 0) portals.shift();
             while (coins.length > 0 && coins[0].x + coins[0].radius < 0) coins.shift();
 
-            if (!gameOver) score += Math.floor(gameSpeed / 5);
+            if (!gameOver) score += Math.floor(gameSpeed / 3);
         }
 
         function triggerGameOver() {
             gameOver = true;
             stopBGM();
-            restartBtn.style.display = "block";
+            finalScoreText.innerText = "SCORE: " + score + " | COINS: " + coinsCollected;
+            gameOverOverlay.style.display = "flex";
         }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            if (!gameStarted) {
-                ctx.fillStyle = "#ffffff";
-                ctx.font = "bold 28px sans-serif";
-                ctx.textAlign = "center";
-                ctx.fillText("GEOMETRY DASH", canvas.width / 2, canvas.height / 2 - 40);
-                ctx.font = "16px sans-serif";
-                ctx.fillStyle = "#00ffff";
-                ctx.fillText("WAVE MODE", canvas.width / 2, canvas.height / 2 - 10);
-                return;
-            }
+            if (!gameStarted) return;
 
-            // 1. 웨이브 잔상
+            // 1. 잔상
             if (trail.length > 1) {
                 ctx.beginPath();
                 ctx.moveTo(trail[0].x, trail[0].y);
@@ -430,32 +440,17 @@ game_code = """
                     ctx.lineTo(trail[i].x, trail[i].y);
                 }
                 ctx.lineTo(player.x, player.y);
-                ctx.strokeStyle = gameSpeed > 5 ? "rgba(255, 100, 0, 0.8)" : "rgba(0, 255, 255, 0.8)";
+                ctx.strokeStyle = currentMode === 'extreme' ? "rgba(255, 0, 85, 0.8)" : (currentMode === 'hard' ? "rgba(255, 153, 0, 0.8)" : "rgba(0, 255, 255, 0.8)");
                 ctx.lineWidth = 4;
                 ctx.lineCap = "round";
                 ctx.lineJoin = "round";
                 ctx.shadowBlur = 8;
-                ctx.shadowColor = gameSpeed > 5 ? "#ff6400" : "#00ffff";
+                ctx.shadowColor = currentMode === 'extreme' ? "#ff0055" : "#00ffff";
                 ctx.stroke();
                 ctx.shadowBlur = 0;
             }
 
-            // 2. 포탈
-            for (let p of portals) {
-                if (p.active) {
-                    ctx.fillStyle = p.type === 'fast' ? '#ff6600' : '#0088ff';
-                    ctx.fillRect(p.x, p.y, p.width, p.height);
-                    ctx.strokeStyle = '#ffffff';
-                    ctx.lineWidth = 2;
-                    ctx.strokeRect(p.x, p.y, p.width, p.height);
-                    ctx.fillStyle = '#ffffff';
-                    ctx.beginPath();
-                    ctx.ellipse(p.x + p.width / 2, p.y + p.height / 2, 4, p.height / 3, 0, 0, Math.PI * 2);
-                    ctx.fill();
-                }
-            }
-
-            // 3. 장애물 그리기
+            // 2. 장애물
             for (let obs of obstacles) {
                 if (obs.type === 'block') {
                     ctx.fillStyle = "#ff0055";
@@ -475,12 +470,10 @@ game_code = """
                     ctx.lineWidth = 1;
                     ctx.stroke();
                 } else if (obs.type === 'sawblade') {
-                    // [NEW] 움직이는 회전 톱니바퀴
                     ctx.save();
                     ctx.translate(obs.x, obs.y);
                     ctx.rotate(obs.angle);
 
-                    // 톱니 이빨
                     ctx.fillStyle = "#bb00ff";
                     const teeth = 8;
                     for (let i = 0; i < teeth; i++) {
@@ -493,7 +486,6 @@ game_code = """
                         ctx.fill();
                     }
 
-                    // 톱니 원형 몸통
                     ctx.fillStyle = "#9900cc";
                     ctx.beginPath();
                     ctx.arc(0, 0, obs.radius, 0, Math.PI * 2);
@@ -502,7 +494,6 @@ game_code = """
                     ctx.lineWidth = 2;
                     ctx.stroke();
 
-                    // 중앙 구멍
                     ctx.fillStyle = "#111111";
                     ctx.beginPath();
                     ctx.arc(0, 0, 5, 0, Math.PI * 2);
@@ -510,28 +501,24 @@ game_code = """
 
                     ctx.restore();
                 } else if (obs.type === 'giant_pillar') {
-                    // [NEW] 거대 구조물 (위/아래 기둥)
                     ctx.fillStyle = "#222233";
                     ctx.strokeStyle = "#00ffff";
                     ctx.lineWidth = 2;
 
-                    // 위쪽 기둥
                     ctx.fillRect(obs.x, 0, obs.width, obs.gapY);
                     ctx.strokeRect(obs.x, 0, obs.width, obs.gapY);
 
-                    // 아래쪽 기둥
                     const bottomY = obs.gapY + obs.gapHeight;
                     ctx.fillRect(obs.x, bottomY, obs.width, canvas.height - bottomY);
                     ctx.strokeRect(obs.x, bottomY, obs.width, canvas.height - bottomY);
 
-                    // 테두리 강조
                     ctx.fillStyle = "#00ffff";
                     ctx.fillRect(obs.x, obs.gapY - 4, obs.width, 4);
                     ctx.fillRect(obs.x, bottomY, obs.width, 4);
                 }
             }
 
-            // 4. 코인
+            // 3. 코인
             for (let coin of coins) {
                 if (!coin.collected) {
                     ctx.fillStyle = "#ffd700";
@@ -544,8 +531,8 @@ game_code = """
                 }
             }
 
-            // 5. 플레이어 (화살표 모양)
-            ctx.fillStyle = gameSpeed > 5 ? "#ffcc00" : "#00ffff";
+            // 4. 플레이어
+            ctx.fillStyle = currentMode === 'extreme' ? "#ff0055" : (currentMode === 'hard' ? "#ff9900" : "#00ffff");
             ctx.beginPath();
             ctx.moveTo(player.x + player.size, player.y);
             ctx.lineTo(player.x - player.size, player.y - player.size);
@@ -553,26 +540,16 @@ game_code = """
             ctx.closePath();
             ctx.fill();
 
-            // UI 표시
+            // UI
             ctx.fillStyle = "#ffffff";
             ctx.font = "16px sans-serif";
             ctx.textAlign = "left";
             ctx.fillText("SCORE: " + score, 15, 30);
             ctx.fillStyle = "#ffd700";
             ctx.fillText("🪙 COINS: " + coinsCollected, 150, 30);
-            ctx.fillStyle = gameSpeed > 5 ? "#ff6600" : "#0088ff";
-            ctx.fillText(gameSpeed > 5 ? "⚡ FAST" : "🐢 NORMAL", 280, 30);
-
-            // 게임 오버
-            if (gameOver) {
-                ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-                ctx.fillStyle = "#ff3333";
-                ctx.font = "bold 30px sans-serif";
-                ctx.textAlign = "center";
-                ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 30);
-            }
+            ctx.fillStyle = currentMode === 'extreme' ? "#ff0055" : (currentMode === 'hard' ? "#ff9900" : "#00cc66");
+            const modeName = currentMode === 'extreme' ? "🔥 종결" : (currentMode === 'hard' ? "⚡ 하드" : "🌱 이지");
+            ctx.fillText("MODE: " + modeName, 280, 30);
         }
 
         function loop() {
@@ -583,30 +560,35 @@ game_code = """
             }
         }
 
-        function startGame() {
+        function selectDifficulty(mode) {
             initAudio();
             if (audioCtx.state === "suspended") {
                 audioCtx.resume();
             }
-            startBtn.style.display = "none";
             gameStarted = true;
-            init();
-            startBGM();
+            init(mode);
+            startBGM(mode);
             loop();
         }
 
-        function resetGame() {
+        function restartSameDifficulty() {
             cancelAnimationFrame(animationFrameId);
             initAudio();
             if (audioCtx.state === "suspended") {
                 audioCtx.resume();
             }
-            init();
-            startBGM();
+            init(currentMode);
+            startBGM(currentMode);
             loop();
         }
 
-        draw();
+        function showDifficultySelect() {
+            cancelAnimationFrame(animationFrameId);
+            stopBGM();
+            gameStarted = false;
+            gameOverOverlay.style.display = "none";
+            startOverlay.style.display = "flex";
+        }
     </script>
 </body>
 </html>
