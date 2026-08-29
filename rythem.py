@@ -179,4 +179,70 @@ game_code = """
                     ctx.lineTo(trail[i].x, trail[i].y);
                 }
                 ctx.lineTo(player.x, player.y); // 현재 화살표 위치까지 연결
-                ctx.strokeStyle = "rgba(0, 255
+                ctx.strokeStyle = "rgba(0, 255, 255, 0.8)";
+                ctx.lineWidth = 4;
+                ctx.lineCap = "round";
+                ctx.lineJoin = "round";
+                ctx.shadowBlur = 8;
+                ctx.shadowColor = "#00ffff";
+                ctx.stroke();
+                ctx.shadowBlur = 0; // 다른 항목에 영향 없도록 그림자 해제
+            }
+
+            // 2. 장애물 그리기
+            ctx.fillStyle = "#ff0055";
+            for (let obs of obstacles) {
+                ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+            }
+
+            // 3. 플레이어 그리기 (화살표 모양)
+            ctx.fillStyle = "#00ffff";
+            ctx.beginPath();
+            ctx.moveTo(player.x + player.size, player.y);
+            ctx.lineTo(player.x - player.size, player.y - player.size);
+            ctx.lineTo(player.x - player.size, player.y + player.size);
+            ctx.closePath();
+            ctx.fill();
+
+            // 점수 표시
+            ctx.fillStyle = "#ffffff";
+            ctx.font = "18px sans-serif";
+            ctx.textAlign = "left";
+            ctx.fillText("SCORE: " + score, 15, 30);
+
+            // 게임 오버 메시지
+            if (gameOver) {
+                ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = "#ff3333";
+                ctx.font = "bold 30px sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 30);
+            }
+        }
+
+        function loop() {
+            update();
+            draw();
+            if (!gameOver) {
+                animationFrameId = requestAnimationFrame(loop);
+            }
+        }
+
+        function resetGame() {
+            cancelAnimationFrame(animationFrameId);
+            init();
+            loop();
+        }
+
+        // 게임 시작
+        init();
+        loop();
+    </script>
+</body>
+</html>
+"""
+
+# HTML 컴포넌트를 Streamlit 화면에 렌더링
+components.html(game_code, height=380)
