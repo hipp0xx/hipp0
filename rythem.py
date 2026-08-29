@@ -69,7 +69,7 @@ game_code = """
         const startBtn = document.getElementById("startBtn");
         const restartBtn = document.getElementById("restartBtn");
 
-        // Web Audio API 설정 (피아노 + 바이올린 + 베이스 합성)
+        // Web Audio API 설정 (피아노 + 바이올린 BGM)
         let audioCtx = null;
         let bgmInterval = null;
 
@@ -79,20 +79,18 @@ game_code = """
             }
         }
 
-        // 음고(Hz) 변환 표 (Am 키 기반)
         const FREQS = {
             A2: 110.00, C3: 130.81, E3: 164.81, G3: 196.00,
             A3: 220.00, C4: 261.63, E4: 329.63, F4: 349.23,
             G4: 392.00, A4: 440.00, B4: 493.88, C5: 523.25, E5: 659.25
         };
 
-        // 피아노음 생성 (부드럽고 빠른 감쇄)
         function playPiano(freq, time, duration = 0.25) {
             if (!audioCtx) return;
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
 
-            osc.type = "triangle"; // 피아노 톤에 가까운 삼각파
+            osc.type = "triangle";
             osc.frequency.setValueAtTime(freq, time);
 
             gain.gain.setValueAtTime(0.15, time);
@@ -105,23 +103,20 @@ game_code = """
             osc.stop(time + duration);
         }
 
-        // 바이올린/스트링음 생성 (바이브라토 + 풍성한 배음)
         function playViolin(freq, time, duration = 0.5) {
             if (!audioCtx) return;
             const osc = audioCtx.createOscillator();
             const gain = audioCtx.createGain();
-            const lfo = audioCtx.createOscillator(); // 바이브라토 연출용
+            const lfo = audioCtx.createOscillator();
             const lfoGain = audioCtx.createGain();
 
             osc.type = "sawtooth";
             osc.frequency.setValueAtTime(freq, time);
 
-            // 바이브라토 (떨림) 설정
-            lfo.frequency.setValueAtTime(6, time); // 6Hz 떨림
-            lfoGain.gain.setValueAtTime(3, time); // 떨림 폭
+            lfo.frequency.setValueAtTime(6, time);
+            lfoGain.gain.setValueAtTime(3, time);
             lfo.connect(osc.frequency);
 
-            // 서서히 커졌다가 감싸안듯 줄어드는 볼륨 커브
             gain.gain.setValueAtTime(0.01, time);
             gain.gain.linearRampToValueAtTime(0.08, time + 0.1);
             gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
@@ -136,12 +131,10 @@ game_code = """
             osc.stop(time + duration);
         }
 
-        // 지오메트리 대쉬 스타일 BGM 시퀀서
         function startBGM() {
             if (!audioCtx) return;
             stopBGM();
 
-            // 빠른 피아노 메인 리프 패턴
             const pianoMelody = [
                 FREQS.A4, FREQS.C5, FREQS.E5, FREQS.C5,
                 FREQS.G4, FREQS.B4, FREQS.E5, FREQS.B4,
@@ -149,7 +142,6 @@ game_code = """
                 FREQS.E4, FREQS.G4, FREQS.B4, FREQS.G4
             ];
 
-            // 웅장하게 받쳐주는 바이올린 화음 패턴
             const violinChords = [
                 FREQS.A4, FREQS.G4, FREQS.F4, FREQS.E4
             ];
@@ -161,18 +153,16 @@ game_code = """
 
                 const now = audioCtx.currentTime;
 
-                // 1. 빠른 피아노 멜로디 (매 비트마다)
                 const pFreq = pianoMelody[step % pianoMelody.length];
                 playPiano(pFreq, now, 0.2);
 
-                // 2. 4비트마다 배경을 채워주는 바이올린 롱톤
                 if (step % 4 === 0) {
                     const vFreq = violinChords[Math.floor(step / 4) % violinChords.length];
                     playViolin(vFreq, now, 0.6);
                 }
 
                 step++;
-            }, 120); // 125 BPM
+            }, 120);
         }
 
         function stopBGM() {
@@ -192,7 +182,6 @@ game_code = """
         let player, obstacles, coins, portals, frameCount, animationFrameId;
         let trail = [];
 
-        // 게임 초기화
         function init() {
             isPressing = false;
             gameOver = false;
@@ -225,10 +214,12 @@ game_code = """
         canvas.addEventListener("mousedown", () => isPressing = true);
         canvas.addEventListener("mouseup", () => isPressing = false);
 
+        // 장애물 생성 알고리즘 (다양한 타입 지원)
         function spawnElements() {
             const rand = Math.random();
 
-            if (rand < 0.25) {
+            if (rand < 0.20) {
+                // 1. 배속 포탈
                 const isFast = gameSpeed <= 5;
                 portals.push({
                     x: canvas.width,
@@ -238,17 +229,44 @@ game_code = """
                     type: isFast ? 'fast' : 'slow',
                     active: true
                 });
-            } else if (rand < 0.6) {
-                const type = Math.floor(Math.random() * 2);
-                if (type === 0) {
+            } else if (rand < 0.40) {
+                // 2. [NEW] 움직이는 톱니바퀴 (Sawblade)
+                const baseCircleY = Math.random() * (canvas.height - 120) + 60;
+                obstacles.push({
+                    type: 'sawblade',
+                    x: canvas.width,
+                    baseY: baseCircleY,
+                    y: baseCircleY,
+                    radius: 20,
+                    angle: 0,
+                    moveOffset: 0,
+                    moveSpeed: 0.05, // 상하 움직임 속도
+                    moveRange: 40    // 상하 움직임 범위
+                });
+            } else if (rand < 0.60) {
+                // 3. [NEW] 거대한 구조물 (Gate/Giant Pillar - 중앙 통로 제외 통곡의 벽)
+                const gapHeight = 90; // 통과할 공간
+                const gapY = Math.random() * (canvas.height - gapHeight - 40) + 20;
+                obstacles.push({
+                    type: 'giant_pillar',
+                    x: canvas.width,
+                    width: 45,
+                    gapY: gapY,
+                    gapHeight: gapHeight
+                });
+            } else if (rand < 0.80) {
+                // 4. 일반 블록 / 가시
+                const isSpike = Math.random() > 0.5;
+                if (isSpike) {
+                    const y = Math.random() * (canvas.height - 100) + 50;
+                    obstacles.push({ type: 'spike', x: canvas.width, y: y, width: 25, height: 30 });
+                } else {
                     const h = 40;
                     const y = Math.random() * (canvas.height - 120) + 40;
                     obstacles.push({ type: 'block', x: canvas.width, y: y, width: 35, height: h });
-                } else {
-                    const y = Math.random() * (canvas.height - 100) + 50;
-                    obstacles.push({ type: 'spike', x: canvas.width, y: y, width: 25, height: 30 });
                 }
             } else {
+                // 5. 天/地 블록
                 const isTop = Math.random() > 0.5;
                 const h = Math.random() * 80 + 40;
                 obstacles.push({
@@ -260,10 +278,11 @@ game_code = """
                 });
             }
 
-            if (Math.random() > 0.6) {
+            // 골드 코인 생성
+            if (Math.random() > 0.5) {
                 const coinY = Math.random() * (canvas.height - 80) + 40;
                 coins.push({
-                    x: canvas.width + 40,
+                    x: canvas.width + 50,
                     y: coinY,
                     radius: 8,
                     collected: false
@@ -281,6 +300,7 @@ game_code = """
                 player.y += currentSpeedY;
             }
 
+            // 플레이어 잔상
             trail.push({ x: player.x, y: player.y });
             for (let i = 0; i < trail.length; i++) {
                 trail[i].x -= gameSpeed;
@@ -289,6 +309,7 @@ game_code = """
                 trail.shift();
             }
 
+            // 천장/바닥 충돌
             if (player.y - player.size < 0 || player.y + player.size > canvas.height) {
                 triggerGameOver();
             }
@@ -298,20 +319,51 @@ game_code = """
                 spawnElements();
             }
 
+            // 장애물 업데이트 및 충돌 검사
             for (let i = 0; i < obstacles.length; i++) {
                 let obs = obstacles[i];
                 obs.x -= gameSpeed;
 
-                if (
-                    player.x + player.size > obs.x &&
-                    player.x - player.size < obs.x + obs.width &&
-                    player.y + player.size > obs.y &&
-                    player.y - player.size < obs.y + obs.height
-                ) {
-                    triggerGameOver();
+                if (obs.type === 'block') {
+                    if (
+                        player.x + player.size > obs.x &&
+                        player.x - player.size < obs.x + obs.width &&
+                        player.y + player.size > obs.y &&
+                        player.y - player.size < obs.y + obs.height
+                    ) {
+                        triggerGameOver();
+                    }
+                } else if (obs.type === 'spike') {
+                    if (
+                        player.x + player.size > obs.x &&
+                        player.x - player.size < obs.x + obs.width &&
+                        player.y + player.size > obs.y &&
+                        player.y - player.size < obs.y + obs.height
+                    ) {
+                        triggerGameOver();
+                    }
+                } else if (obs.type === 'sawblade') {
+                    // 톱니바퀴 자체 회전 및 위아래 상하운동
+                    obs.angle += 0.1;
+                    obs.moveOffset += obs.moveSpeed;
+                    obs.y = obs.baseY + Math.sin(obs.moveOffset) * obs.moveRange;
+
+                    // 원형-원형 충돌 판정
+                    const dist = Math.hypot(player.x - obs.x, player.y - obs.y);
+                    if (dist < player.size + obs.radius) {
+                        triggerGameOver();
+                    }
+                } else if (obs.type === 'giant_pillar') {
+                    // 거대 조형물 (통로 공간 외의 상/하 기둥과 충돌)
+                    if (player.x + player.size > obs.x && player.x - player.size < obs.x + obs.width) {
+                        if (player.y - player.size < obs.gapY || player.y + player.size > obs.gapY + obs.gapHeight) {
+                            triggerGameOver();
+                        }
+                    }
                 }
             }
 
+            // 포탈 업데이트
             for (let i = 0; i < portals.length; i++) {
                 let p = portals[i];
                 p.x -= gameSpeed;
@@ -327,6 +379,7 @@ game_code = """
                 }
             }
 
+            // 코인 업데이트
             for (let i = 0; i < coins.length; i++) {
                 let coin = coins[i];
                 coin.x -= gameSpeed;
@@ -341,7 +394,8 @@ game_code = """
                 }
             }
 
-            if (obstacles.length > 0 && obstacles[0].x + obstacles[0].width < 0) obstacles.shift();
+            // 화면을 벗어난 장애물 정리
+            if (obstacles.length > 0 && obstacles[0].x + 60 < 0) obstacles.shift();
             if (portals.length > 0 && portals[0].x + portals[0].width < 0) portals.shift();
             while (coins.length > 0 && coins[0].x + coins[0].radius < 0) coins.shift();
 
@@ -368,7 +422,7 @@ game_code = """
                 return;
             }
 
-            // 1. 잔상
+            // 1. 웨이브 잔상
             if (trail.length > 1) {
                 ctx.beginPath();
                 ctx.moveTo(trail[0].x, trail[0].y);
@@ -401,7 +455,7 @@ game_code = """
                 }
             }
 
-            // 3. 장애물
+            // 3. 장애물 그리기
             for (let obs of obstacles) {
                 if (obs.type === 'block') {
                     ctx.fillStyle = "#ff0055";
@@ -420,6 +474,60 @@ game_code = """
                     ctx.strokeStyle = "#ffffff";
                     ctx.lineWidth = 1;
                     ctx.stroke();
+                } else if (obs.type === 'sawblade') {
+                    // [NEW] 움직이는 회전 톱니바퀴
+                    ctx.save();
+                    ctx.translate(obs.x, obs.y);
+                    ctx.rotate(obs.angle);
+
+                    // 톱니 이빨
+                    ctx.fillStyle = "#bb00ff";
+                    const teeth = 8;
+                    for (let i = 0; i < teeth; i++) {
+                        ctx.rotate((Math.PI * 2) / teeth);
+                        ctx.beginPath();
+                        ctx.moveTo(0, -obs.radius - 5);
+                        ctx.lineTo(5, -obs.radius + 3);
+                        ctx.lineTo(-5, -obs.radius + 3);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+
+                    // 톱니 원형 몸통
+                    ctx.fillStyle = "#9900cc";
+                    ctx.beginPath();
+                    ctx.arc(0, 0, obs.radius, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.strokeStyle = "#ffffff";
+                    ctx.lineWidth = 2;
+                    ctx.stroke();
+
+                    // 중앙 구멍
+                    ctx.fillStyle = "#111111";
+                    ctx.beginPath();
+                    ctx.arc(0, 0, 5, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    ctx.restore();
+                } else if (obs.type === 'giant_pillar') {
+                    // [NEW] 거대 구조물 (위/아래 기둥)
+                    ctx.fillStyle = "#222233";
+                    ctx.strokeStyle = "#00ffff";
+                    ctx.lineWidth = 2;
+
+                    // 위쪽 기둥
+                    ctx.fillRect(obs.x, 0, obs.width, obs.gapY);
+                    ctx.strokeRect(obs.x, 0, obs.width, obs.gapY);
+
+                    // 아래쪽 기둥
+                    const bottomY = obs.gapY + obs.gapHeight;
+                    ctx.fillRect(obs.x, bottomY, obs.width, canvas.height - bottomY);
+                    ctx.strokeRect(obs.x, bottomY, obs.width, canvas.height - bottomY);
+
+                    // 테두리 강조
+                    ctx.fillStyle = "#00ffff";
+                    ctx.fillRect(obs.x, obs.gapY - 4, obs.width, 4);
+                    ctx.fillRect(obs.x, bottomY, obs.width, 4);
                 }
             }
 
@@ -436,7 +544,7 @@ game_code = """
                 }
             }
 
-            // 5. 플레이어
+            // 5. 플레이어 (화살표 모양)
             ctx.fillStyle = gameSpeed > 5 ? "#ffcc00" : "#00ffff";
             ctx.beginPath();
             ctx.moveTo(player.x + player.size, player.y);
@@ -445,7 +553,7 @@ game_code = """
             ctx.closePath();
             ctx.fill();
 
-            // UI
+            // UI 표시
             ctx.fillStyle = "#ffffff";
             ctx.font = "16px sans-serif";
             ctx.textAlign = "left";
