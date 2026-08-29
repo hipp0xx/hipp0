@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.title("📐 Streamlit Geometry Dash (Spaced Stairs & Platforms)")
+st.title("📐 Streamlit Geometry Dash (Spaced Jump Edition)")
 
 # HTML/JS 기반 게임 코드
 game_code = """
@@ -56,16 +56,10 @@ game_code = """
             cursor: pointer;
             transition: 0.2s;
         }
-        .btn-easy { background-color: #00cc66; }
-        .btn-easy:hover { background-color: #00ff80; }
-        .btn-hard { background-color: #ff9900; }
-        .btn-hard:hover { background-color: #ffbb33; }
-        .btn-extreme { background-color: #ff0055; }
-        .btn-extreme:hover { background-color: #ff3377; }
+        .btn-start { background-color: #00cc66; }
+        .btn-start:hover { background-color: #00ff80; }
         .btn-restart { background-color: #0099ff; }
         .btn-restart:hover { background-color: #33b5ff; }
-        .btn-change { background-color: #888; }
-        .btn-change:hover { background-color: #aaa; }
         .title-text {
             font-size: 26px;
             font-weight: bold;
@@ -83,14 +77,12 @@ game_code = """
     <div style="position: relative; display: flex; justify-content: center; align-items: center;">
         <canvas id="gameCanvas" width="600" height="300"></canvas>
 
-        <!-- 난이도 선택 화면 -->
+        <!-- 시작 화면 -->
         <div id="startOverlay" class="ui-overlay">
             <div class="title-text">GEOMETRY DASH</div>
-            <div class="sub-text">JUMP STAIRS & PLATFORMS - 난이도를 선택하세요</div>
+            <div class="sub-text">넓은 계단 점프 액션</div>
             <div class="btn-container">
-                <button class="btn btn-easy" onclick="selectDifficulty('easy')">1단계: 이지</button>
-                <button class="btn btn-hard" onclick="selectDifficulty('hard')">2단계: 하드</button>
-                <button class="btn btn-extreme" onclick="selectDifficulty('extreme')">3단계: 종결</button>
+                <button class="btn btn-start" onclick="startGame()">게임 시작 🚀</button>
             </div>
         </div>
 
@@ -99,12 +91,11 @@ game_code = """
             <div class="title-text" style="color: #ff3333;">GAME OVER</div>
             <div id="finalScore" class="sub-text" style="color: #fff;">SCORE: 0</div>
             <div class="btn-container">
-                <button class="btn btn-restart" onclick="restartSameDifficulty()">다시 시작 🔄</button>
-                <button class="btn btn-change" onclick="showDifficultySelect()">모드 변경 ⚙️</button>
+                <button class="btn btn-restart" onclick="restartGame()">다시 시작 🔄</button>
             </div>
         </div>
     </div>
-    <div id="info"><b>조작법:</b> 스페이스바, 위쪽 화살표 또는 클릭 (점프) | 넓어진 계단과 조형물을 점프하여 올라가세요!</div>
+    <div id="info"><b>조작법:</b> 스페이스바, 위쪽 화살표 또는 클릭 (길게 누르면 연속 점프 유지)</div>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
@@ -177,7 +168,7 @@ game_code = """
             osc.stop(time + duration);
         }
 
-        function startBGM(speedMode) {
+        function startBGM() {
             if (!audioCtx) return;
             stopBGM();
 
@@ -194,8 +185,6 @@ game_code = """
 
             let step = 0;
             let tempo = 120;
-            if (speedMode === 'hard') tempo = 90;
-            if (speedMode === 'extreme') tempo = 60;
 
             bgmInterval = setInterval(() => {
                 if (!audioCtx || audioCtx.state === "suspended") return;
@@ -220,19 +209,19 @@ game_code = """
             }
         }
 
-        // 게임 변수
+        // 게임 상태 및 물리 변수 (이지 모드 고정)
         let gameStarted = false;
         let gameOver = false;
-        let currentMode = 'easy';
         let score = 0;
         let coinsCollected = 0;
-        let gameSpeed = 5;
-        let gravity = 0.6;
-        let jumpForce = -9.2;
-        let player, obstacles, terrains, coins, frameCount, animationFrameId;
+        const gameSpeed = 5;
+        const gravity = 0.58;
+        const jumpForce = -9.2;
 
-        function init(mode) {
-            currentMode = mode;
+        let player, obstacles, terrains, coins, frameCount, animationFrameId;
+        let isJumpHolding = false; // 버튼 홀드 상태 변수
+
+        function init() {
             gameOver = false;
             score = 0;
             coinsCollected = 0;
@@ -240,20 +229,6 @@ game_code = """
             obstacles = [];
             terrains = [];
             coins = [];
-
-            if (mode === 'easy') {
-                gameSpeed = 5;
-                gravity = 0.58;
-                jumpForce = -9.2;
-            } else if (mode === 'hard') {
-                gameSpeed = 7.5;
-                gravity = 0.72;
-                jumpForce = -10.5;
-            } else if (mode === 'extreme') {
-                gameSpeed = 12;
-                gravity = 0.92;
-                jumpForce = -12.0;
-            }
 
             player = {
                 x: 80,
@@ -269,26 +244,35 @@ game_code = """
             startOverlay.style.display = "none";
         }
 
-        function jump() {
-            if (player.isGrounded && gameStarted && !gameOver) {
-                player.vy = jumpForce;
-                player.isGrounded = false;
-            }
-        }
-
+        // 키/마우스 입력 이벤트 (홀드 처리)
         window.addEventListener("keydown", (e) => {
-            if (e.code === "Space" || e.code === "ArrowUp") jump();
+            if (e.code === "Space" || e.code === "ArrowUp") {
+                isJumpHolding = true;
+            }
         });
-        canvas.addEventListener("mousedown", jump);
 
-        // 간격이 넓은 계단 및 가로 조형물 스폰
+        window.addEventListener("keyup", (e) => {
+            if (e.code === "Space" || e.code === "ArrowUp") {
+                isJumpHolding = false;
+            }
+        });
+
+        canvas.addEventListener("mousedown", () => {
+            isJumpHolding = true;
+        });
+
+        window.addEventListener("mouseup", () => {
+            isJumpHolding = false;
+        });
+
+        // 지형 생성 (간격이 매우 넓은 계단 및 길쭉한 조형물)
         function spawnElements() {
             const rand = Math.random();
 
-            if (rand < 0.4) {
-                // 1. 간격이 넓어 점프해서 올라가는 계단 (Spaced Stairs)
-                const stepWidth = 35;
-                const stepGap = 25; // 계단 사이 간격
+            if (rand < 0.5) {
+                // 1. 점프해서 겨우 넘어가는 넓은 간격의 계단
+                const stepWidth = 40;
+                const stepGap = 85; // 캐릭터 속도(5) 대비 빠듯하게 닿는 넓은 간격
                 const stepHeight = 22;
                 const totalSteps = 3;
 
@@ -304,11 +288,11 @@ game_code = """
                         height: FLOOR_Y - stepY
                     });
 
-                    // 계단 사이 바닥에 가시 배치
+                    // 넓은 계단 사이에 가시 배치
                     if (i < totalSteps - 1) {
                         obstacles.push({
                             type: 'spike',
-                            x: stepX + stepWidth + 2,
+                            x: stepX + stepWidth + (stepGap / 2) - 10,
                             y: FLOOR_Y - 22,
                             width: 20,
                             height: 22
@@ -316,7 +300,7 @@ game_code = """
                     }
                 }
 
-                // 마지막 계단 위에 코인
+                // 마지막 계단 위 코인
                 const lastX = canvas.width + ((totalSteps - 1) * (stepWidth + stepGap));
                 coins.push({
                     x: lastX + stepWidth / 2,
@@ -325,11 +309,11 @@ game_code = """
                     collected: false
                 });
 
-            } else if (rand < 0.7) {
-                // 2. 가로로 길쭉한 대형 발판 조형물 (Long Horizontal Structure)
-                const longWidth = 140;
+            } else if (rand < 0.8) {
+                // 2. 가로로 길쭉한 발판 조형물
+                const longWidth = 150;
                 const longHeight = 22;
-                const longY = FLOOR_Y - (Math.random() * 30 + 45); // 점프해서 올라갈 수 있는 높이
+                const longY = FLOOR_Y - 55;
 
                 terrains.push({
                     type: 'structure',
@@ -339,18 +323,18 @@ game_code = """
                     height: longHeight
                 });
 
-                // 길쭉한 조형물 위에 가시 또는 코인 생성
+                // 조형물 위에 가시 또는 코인 배치
                 if (Math.random() > 0.5) {
                     obstacles.push({
                         type: 'spike',
-                        x: canvas.width + 60,
+                        x: canvas.width + 65,
                         y: longY - 22,
                         width: 20,
                         height: 22
                     });
                 } else {
                     coins.push({
-                        x: canvas.width + 70,
+                        x: canvas.width + 75,
                         y: longY - 20,
                         radius: 8,
                         collected: false
@@ -358,42 +342,44 @@ game_code = """
                 }
 
             } else {
-                // 3. 단독 가시 장애물
-                const spikeCount = Math.random() > 0.5 ? 2 : 1;
-                for (let i = 0; i < spikeCount; i++) {
-                    obstacles.push({
-                        type: 'spike',
-                        x: canvas.width + (i * 22),
-                        y: FLOOR_Y - 26,
-                        width: 22,
-                        height: 26
-                    });
-                }
+                // 3. 바닥 가시 장애물
+                obstacles.push({
+                    type: 'spike',
+                    x: canvas.width,
+                    y: FLOOR_Y - 26,
+                    width: 22,
+                    height: 26
+                });
             }
         }
 
         function update() {
             if (!gameStarted || gameOver) return;
 
-            // 중력
+            // 버튼 홀드 점프 처리
+            if (isJumpHolding && player.isGrounded) {
+                player.vy = jumpForce;
+                player.isGrounded = false;
+            }
+
+            // 중력 및 이동
             player.vy += gravity;
             player.y += player.vy;
 
-            // 공중 회전
+            // 회전
             if (!player.isGrounded) {
                 player.rotation += 0.12;
             } else {
                 player.rotation = Math.round(player.rotation / (Math.PI / 2)) * (Math.PI / 2);
             }
 
-            // 스폰
+            // 스폰 주기
             frameCount++;
-            const spawnInterval = currentMode === 'extreme' ? 45 : (currentMode === 'hard' ? 60 : 75);
-            if (frameCount % spawnInterval === 0) {
+            if (frameCount % 85 === 0) {
                 spawnElements();
             }
 
-            // 이동
+            // 위치 이동
             for (let t of terrains) t.x -= gameSpeed;
             for (let obs of obstacles) obs.x -= gameSpeed;
             for (let coin of coins) coin.x -= gameSpeed;
@@ -413,13 +399,13 @@ game_code = """
                 const tBottom = t.y + t.height;
 
                 if (pRight > tLeft && pLeft < tRight) {
-                    // 1. 발판/계단 착지 판정 (위에서 내려올 때)
+                    // 착지 판정
                     if (player.vy >= 0 && pBottom >= tTop && pBottom - player.vy <= tTop + 12) {
                         player.y = tTop - player.height;
                         player.vy = 0;
                         player.isGrounded = true;
                     } 
-                    // 2. 옆면 정면 충돌 (사망)
+                    // 측면 충돌 판정
                     else if (pBottom > tTop + 8 && pTop < tBottom) {
                         if (pRight - gameSpeed <= tLeft) {
                             triggerGameOver();
@@ -428,14 +414,14 @@ game_code = """
                 }
             }
 
-            // 기본 바닥 착지
+            // 바닥 착지
             if (player.y + player.height >= FLOOR_Y) {
                 player.y = FLOOR_Y - player.height;
                 player.vy = 0;
                 player.isGrounded = true;
             }
 
-            // --- 가시 충돌 판정 ---
+            // --- 가시 충돌 ---
             for (let obs of obstacles) {
                 if (obs.type === 'spike') {
                     if (
@@ -461,8 +447,8 @@ game_code = """
                 }
             }
 
-            // 화면 밖 제거
-            if (terrains.length > 0 && terrains[0].x + 200 < 0) terrains.shift();
+            // 화면 밖 요소 정리
+            if (terrains.length > 0 && terrains[0].x + 300 < 0) terrains.shift();
             if (obstacles.length > 0 && obstacles[0].x + 100 < 0) obstacles.shift();
             while (coins.length > 0 && coins[0].x + coins[0].radius < 0) coins.shift();
 
@@ -481,7 +467,7 @@ game_code = """
 
             if (!gameStarted) return;
 
-            // 1. 기본 바닥
+            // 바닥
             ctx.fillStyle = "#222233";
             ctx.fillRect(0, FLOOR_Y, canvas.width, canvas.height - FLOOR_Y);
             ctx.strokeStyle = "#00ffff";
@@ -491,30 +477,18 @@ game_code = """
             ctx.lineTo(canvas.width, FLOOR_Y);
             ctx.stroke();
 
-            // 2. 지형 (계단 및 가로 길쭉한 발판 조형물)
+            // 지형
             for (let t of terrains) {
-                if (t.type === 'stair') {
-                    ctx.fillStyle = "#0088ff";
-                    ctx.fillRect(t.x, t.y, t.width, t.height);
-                    ctx.strokeStyle = "#ffffff";
-                    ctx.lineWidth = 1.5;
-                    ctx.strokeRect(t.x, t.y, t.width, t.height);
-                    ctx.fillStyle = "#00ffff";
-                    ctx.fillRect(t.x, t.y, t.width, 3);
-                } else if (t.type === 'structure') {
-                    // 가로 길쭉한 특수 조형물
-                    ctx.fillStyle = "#00aaff";
-                    ctx.fillRect(t.x, t.y, t.width, t.height);
-                    ctx.strokeStyle = "#00ffff";
-                    ctx.lineWidth = 2;
-                    ctx.strokeRect(t.x, t.y, t.width, t.height);
-                    // 상단 라이팅 효과
-                    ctx.fillStyle = "#ffffff";
-                    ctx.fillRect(t.x, t.y, t.width, 3);
-                }
+                ctx.fillStyle = "#0088ff";
+                ctx.fillRect(t.x, t.y, t.width, t.height);
+                ctx.strokeStyle = "#00ffff";
+                ctx.lineWidth = 2;
+                ctx.strokeRect(t.x, t.y, t.width, t.height);
+                ctx.fillStyle = "#ffffff";
+                ctx.fillRect(t.x, t.y, t.width, 3);
             }
 
-            // 3. 가시
+            // 가시
             for (let obs of obstacles) {
                 if (obs.type === 'spike') {
                     ctx.fillStyle = "#ffaa00";
@@ -530,7 +504,7 @@ game_code = """
                 }
             }
 
-            // 4. 코인
+            // 코인
             for (let coin of coins) {
                 if (!coin.collected) {
                     ctx.fillStyle = "#ffd700";
@@ -543,12 +517,12 @@ game_code = """
                 }
             }
 
-            // 5. 플레이어 (큐브)
+            // 플레이어
             ctx.save();
             ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
             ctx.rotate(player.rotation);
 
-            ctx.fillStyle = currentMode === 'extreme' ? "#ff0055" : (currentMode === 'hard' ? "#ff9900" : "#00ffcc");
+            ctx.fillStyle = "#00ffcc";
             ctx.fillRect(-player.width / 2, -player.height / 2, player.width, player.height);
             ctx.strokeStyle = "#ffffff";
             ctx.lineWidth = 2;
@@ -560,16 +534,13 @@ game_code = """
 
             ctx.restore();
 
-            // UI
+            // 점수 UI
             ctx.fillStyle = "#ffffff";
             ctx.font = "16px sans-serif";
             ctx.textAlign = "left";
             ctx.fillText("SCORE: " + score, 15, 30);
             ctx.fillStyle = "#ffd700";
-            ctx.fillText("🪙 COINS: " + coinsCollected, 150, 30);
-            ctx.fillStyle = currentMode === 'extreme' ? "#ff0055" : (currentMode === 'hard' ? "#ff9900" : "#00cc66");
-            const modeName = currentMode === 'extreme' ? "🔥 종결" : (currentMode === 'hard' ? "⚡ 하드" : "🌱 이지");
-            ctx.fillText("MODE: " + modeName, 280, 30);
+            ctx.fillText("🪙 COINS: " + coinsCollected, 160, 30);
         }
 
         function loop() {
@@ -580,39 +551,31 @@ game_code = """
             }
         }
 
-        function selectDifficulty(mode) {
+        function startGame() {
             initAudio();
             if (audioCtx.state === "suspended") {
                 audioCtx.resume();
             }
             gameStarted = true;
-            init(mode);
-            startBGM(mode);
+            init();
+            startBGM();
             loop();
         }
 
-        function restartSameDifficulty() {
+        function restartGame() {
             cancelAnimationFrame(animationFrameId);
             initAudio();
             if (audioCtx.state === "suspended") {
                 audioCtx.resume();
             }
-            init(currentMode);
-            startBGM(currentMode);
+            init();
+            startBGM();
             loop();
-        }
-
-        function showDifficultySelect() {
-            cancelAnimationFrame(animationFrameId);
-            stopBGM();
-            gameStarted = false;
-            gameOverOverlay.style.display = "none";
-            startOverlay.style.display = "flex";
         }
     </script>
 </body>
 </html>
 """
 
-# HTML 컴포넌트 렌더링
+# Streamlit HTML 컴포넌트 출력
 components.html(game_code, height=380)
