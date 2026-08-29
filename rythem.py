@@ -64,6 +64,7 @@ game_code = """
         let gameOver = false;
         let score = 0;
         let player, obstacles, frameCount, animationFrameId;
+        let trail = []; // 잔상(궤적) 위치 저장 배열
 
         // 게임 초기화 함수
         function init() {
@@ -72,6 +73,7 @@ game_code = """
             score = 0;
             frameCount = 0;
             obstacles = [];
+            trail = []; // 잔상 초기화
 
             player = {
                 x: 80,
@@ -114,6 +116,17 @@ game_code = """
                 player.y += player.speedY;
             }
 
+            // 잔상 위치 기록 및 왼쪽으로 이동
+            const gameSpeed = 5;
+            trail.push({ x: player.x, y: player.y });
+            for (let i = 0; i < trail.length; i++) {
+                trail[i].x -= gameSpeed;
+            }
+            // 화면 왼쪽 밖으로 나간 잔상 좌표 제거
+            while (trail.length > 0 && trail[0].x < 0) {
+                trail.shift();
+            }
+
             // 천장/바닥 충돌 처리
             if (player.y - player.size < 0 || player.y + player.size > canvas.height) {
                 triggerGameOver();
@@ -127,7 +140,7 @@ game_code = """
 
             for (let i = 0; i < obstacles.length; i++) {
                 let obs = obstacles[i];
-                obs.x -= 5; // 장애물 속도
+                obs.x -= gameSpeed; // 장애물 속도
 
                 // 플레이어와 장애물 충돌 검사
                 if (
@@ -158,60 +171,12 @@ game_code = """
             // 배경 지우기
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 플레이어 그리기 (화살표 모양)
-            ctx.fillStyle = "#00ffff";
-            ctx.beginPath();
-            ctx.moveTo(player.x + player.size, player.y);
-            ctx.lineTo(player.x - player.size, player.y - player.size);
-            ctx.lineTo(player.x - player.size, player.y + player.size);
-            ctx.closePath();
-            ctx.fill();
-
-            // 장애물 그리기
-            ctx.fillStyle = "#ff0055";
-            for (let obs of obstacles) {
-                ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
-            }
-
-            // 점수 표시
-            ctx.fillStyle = "#ffffff";
-            ctx.font = "18px sans-serif";
-            ctx.textAlign = "left";
-            ctx.fillText("SCORE: " + score, 15, 30);
-
-            // 게임 오버 메시지
-            if (gameOver) {
-                ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-                ctx.fillStyle = "#ff3333";
-                ctx.font = "bold 30px sans-serif";
-                ctx.textAlign = "center";
-                ctx.fillText("GAME OVER", canvas.width / 2, canvas.height / 2 - 30);
-            }
-        }
-
-        function loop() {
-            update();
-            draw();
-            if (!gameOver) {
-                animationFrameId = requestAnimationFrame(loop);
-            }
-        }
-
-        function resetGame() {
-            cancelAnimationFrame(animationFrameId);
-            init();
-            loop();
-        }
-
-        // 게임 시작
-        init();
-        loop();
-    </script>
-</body>
-</html>
-"""
-
-# HTML 컴포넌트를 Streamlit 화면에 렌더링
-components.html(game_code, height=380)
+            // 1. 잔상 (궤적) 그리기
+            if (trail.length > 1) {
+                ctx.beginPath();
+                ctx.moveTo(trail[0].x, trail[0].y);
+                for (let i = 1; i < trail.length; i++) {
+                    ctx.lineTo(trail[i].x, trail[i].y);
+                }
+                ctx.lineTo(player.x, player.y); // 현재 화살표 위치까지 연결
+                ctx.strokeStyle = "rgba(0, 255
