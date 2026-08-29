@@ -28,19 +28,27 @@ game_code = """
             font-size: 14px;
             color: #aaa;
         }
-        #restartBtn {
+        .btn {
             position: absolute;
-            top: 200px;
-            padding: 10px 20px;
-            font-size: 16px;
+            top: 180px;
+            padding: 12px 28px;
+            font-size: 18px;
             font-weight: bold;
             color: white;
-            background-color: #ff0055;
             border: none;
-            border-radius: 5px;
+            border-radius: 8px;
             cursor: pointer;
-            display: none;
             z-index: 10;
+        }
+        #startBtn {
+            background-color: #00cc66;
+        }
+        #startBtn:hover {
+            background-color: #00ff80;
+        }
+        #restartBtn {
+            background-color: #ff0055;
+            display: none;
         }
         #restartBtn:hover {
             background-color: #ff3377;
@@ -50,25 +58,77 @@ game_code = """
 <body>
     <div style="position: relative; display: flex; justify-content: center; align-items: center;">
         <canvas id="gameCanvas" width="600" height="300"></canvas>
-        <button id="restartBtn" onclick="resetGame()">다시 시작 🔄</button>
+        <button id="startBtn" class="btn" onclick="startGame()">게임 시작 ▶</button>
+        <button id="restartBtn" class="btn" onclick="resetGame()">다시 시작 🔄</button>
     </div>
     <div id="info"><b>조작법:</b> 화면 클릭 또는 스페이스바 누르고 있기 (상승) / 떼기 (하강)</div>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
+        const startBtn = document.getElementById("startBtn");
         const restartBtn = document.getElementById("restartBtn");
+
+        // Web Audio API 설정 (저작권 무료 자체 신디사이저 BGM)
+        let audioCtx = null;
+        let bgmInterval = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+        }
+
+        // BGM 루프 재생 (테크노/전자음 스타일)
+        function startBGM() {
+            if (!audioCtx) return;
+            stopBGM();
+
+            const notes = [130.81, 146.83, 164.81, 174.61, 196.00, 220.00, 246.94, 261.63]; // C3 ~ C4
+            let step = 0;
+
+            bgmInterval = setInterval(() => {
+                if (!audioCtx || audioCtx.state === "suspended") return;
+                
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                
+                osc.type = "sawtooth";
+                // 신나는 베이스라인 멜로디 루프
+                const freq = notes[(step * 3) % notes.length];
+                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+                gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.12);
+
+                step++;
+            }, 130); // 템포 조절
+        }
+
+        function stopBGM() {
+            if (bgmInterval) {
+                clearInterval(bgmInterval);
+                bgmInterval = null;
+            }
+        }
 
         // 게임 변수
         let isPressing = false;
+        let gameStarted = false;
         let gameOver = false;
         let score = 0;
         let coinsCollected = 0;
-        let gameSpeed = 5; // 기본 이동 속도
+        let gameSpeed = 5;
         let player, obstacles, coins, portals, frameCount, animationFrameId;
         let trail = [];
 
-        // 게임 초기화 함수
+        // 게임 초기화
         function init() {
             isPressing = false;
             gameOver = false;
@@ -91,7 +151,7 @@ game_code = """
             restartBtn.style.display = "none";
         }
 
-        // 입력을 감지하는 이벤트 리스너
+        // 입력 이벤트
         window.addEventListener("keydown", (e) => {
             if (e.code === "Space") isPressing = true;
         });
@@ -101,13 +161,11 @@ game_code = """
         canvas.addEventListener("mousedown", () => isPressing = true);
         canvas.addEventListener("mouseup", () => isPressing = false);
 
-        // 요소 생성 (장애물, 코인, 포탈)
         function spawnElements() {
             const rand = Math.random();
 
             if (rand < 0.25) {
-                // 속도 변경 포탈 생성
-                const isFast = gameSpeed <= 5; // 현재 느리면 가속 포탈, 빠르면 감속 포탈 유도
+                const isFast = gameSpeed <= 5;
                 portals.push({
                     x: canvas.width,
                     y: Math.random() * (canvas.height - 100) + 50,
@@ -117,7 +175,6 @@ game_code = """
                     active: true
                 });
             } else if (rand < 0.6) {
-                // 공중/바닥 장애물
                 const type = Math.floor(Math.random() * 2);
                 if (type === 0) {
                     const h = 40;
@@ -128,7 +185,6 @@ game_code = """
                     obstacles.push({ type: 'spike', x: canvas.width, y: y, width: 25, height: 30 });
                 }
             } else {
-                // 천장/바닥 벽
                 const isTop = Math.random() > 0.5;
                 const h = Math.random() * 80 + 40;
                 obstacles.push({
@@ -140,7 +196,6 @@ game_code = """
                 });
             }
 
-            // 코인 생성
             if (Math.random() > 0.6) {
                 const coinY = Math.random() * (canvas.height - 80) + 40;
                 coins.push({
@@ -153,9 +208,8 @@ game_code = """
         }
 
         function update() {
-            if (gameOver) return;
+            if (!gameStarted || gameOver) return;
 
-            // 위치 업데이트 (속도에 맞춰 상하 이동 속도도 약간 조절)
             const currentSpeedY = player.speedY * (gameSpeed / 5);
             if (isPressing) {
                 player.y -= currentSpeedY;
@@ -163,7 +217,6 @@ game_code = """
                 player.y += currentSpeedY;
             }
 
-            // 잔상 이동
             trail.push({ x: player.x, y: player.y });
             for (let i = 0; i < trail.length; i++) {
                 trail[i].x -= gameSpeed;
@@ -172,18 +225,15 @@ game_code = """
                 trail.shift();
             }
 
-            // 천장/바닥 충돌
             if (player.y - player.size < 0 || player.y + player.size > canvas.height) {
                 triggerGameOver();
             }
 
-            // 요소 생성
             frameCount++;
             if (frameCount % 45 === 0) {
                 spawnElements();
             }
 
-            // 장애물 이동 및 충돌
             for (let i = 0; i < obstacles.length; i++) {
                 let obs = obstacles[i];
                 obs.x -= gameSpeed;
@@ -198,7 +248,6 @@ game_code = """
                 }
             }
 
-            // 포탈 이동 및 통과 처리
             for (let i = 0; i < portals.length; i++) {
                 let p = portals[i];
                 p.x -= gameSpeed;
@@ -210,15 +259,10 @@ game_code = """
                     player.y - player.size < p.y + p.height
                 ) {
                     p.active = false;
-                    if (p.type === 'fast') {
-                        gameSpeed = 8; // 속도 증가
-                    } else {
-                        gameSpeed = 5; // 속도 감속 (기본)
-                    }
+                    gameSpeed = p.type === 'fast' ? 8 : 5;
                 }
             }
 
-            // 코인 이동 및 획득
             for (let i = 0; i < coins.length; i++) {
                 let coin = coins[i];
                 coin.x -= gameSpeed;
@@ -233,7 +277,6 @@ game_code = """
                 }
             }
 
-            // 배열 정리
             if (obstacles.length > 0 && obstacles[0].x + obstacles[0].width < 0) obstacles.shift();
             if (portals.length > 0 && portals[0].x + portals[0].width < 0) portals.shift();
             while (coins.length > 0 && coins[0].x + coins[0].radius < 0) coins.shift();
@@ -243,13 +286,26 @@ game_code = """
 
         function triggerGameOver() {
             gameOver = true;
+            stopBGM();
             restartBtn.style.display = "block";
         }
 
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. 잔상 그리기
+            // 시작 전 타이틀 화면 처리
+            if (!gameStarted) {
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "bold 28px sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("GEOMETRY DASH", canvas.width / 2, canvas.height / 2 - 40);
+                ctx.font = "16px sans-serif";
+                ctx.fillStyle = "#00ffff";
+                ctx.fillText("WAVE MODE", canvas.width / 2, canvas.height / 2 - 10);
+                return;
+            }
+
+            // 1. 잔상
             if (trail.length > 1) {
                 ctx.beginPath();
                 ctx.moveTo(trail[0].x, trail[0].y);
@@ -267,7 +323,7 @@ game_code = """
                 ctx.shadowBlur = 0;
             }
 
-            // 2. 포탈 그리기
+            // 2. 포탈
             for (let p of portals) {
                 if (p.active) {
                     ctx.fillStyle = p.type === 'fast' ? '#ff6600' : '#0088ff';
@@ -275,8 +331,6 @@ game_code = """
                     ctx.strokeStyle = '#ffffff';
                     ctx.lineWidth = 2;
                     ctx.strokeRect(p.x, p.y, p.width, p.height);
-
-                    // 포탈 내부 효과 (타원)
                     ctx.fillStyle = '#ffffff';
                     ctx.beginPath();
                     ctx.ellipse(p.x + p.width / 2, p.y + p.height / 2, 4, p.height / 3, 0, 0, Math.PI * 2);
@@ -284,7 +338,7 @@ game_code = """
                 }
             }
 
-            // 3. 장애물 그리기
+            // 3. 장애물
             for (let obs of obstacles) {
                 if (obs.type === 'block') {
                     ctx.fillStyle = "#ff0055";
@@ -306,7 +360,7 @@ game_code = """
                 }
             }
 
-            // 4. 코인 그리기
+            // 4. 코인
             for (let coin of coins) {
                 if (!coin.collected) {
                     ctx.fillStyle = "#ffd700";
@@ -319,7 +373,7 @@ game_code = """
                 }
             }
 
-            // 5. 플레이어 그리기
+            // 5. 플레이어
             ctx.fillStyle = gameSpeed > 5 ? "#ffcc00" : "#00ffff";
             ctx.beginPath();
             ctx.moveTo(player.x + player.size, player.y);
@@ -328,19 +382,17 @@ game_code = """
             ctx.closePath();
             ctx.fill();
 
-            // UI 표시
+            // UI
             ctx.fillStyle = "#ffffff";
             ctx.font = "16px sans-serif";
             ctx.textAlign = "left";
             ctx.fillText("SCORE: " + score, 15, 30);
             ctx.fillStyle = "#ffd700";
             ctx.fillText("🪙 COINS: " + coinsCollected, 150, 30);
-
-            // 현재 속도 상태 표시
             ctx.fillStyle = gameSpeed > 5 ? "#ff6600" : "#0088ff";
             ctx.fillText(gameSpeed > 5 ? "⚡ FAST" : "🐢 NORMAL", 280, 30);
 
-            // 게임 오버 메시지
+            // 게임 오버
             if (gameOver) {
                 ctx.fillStyle = "rgba(0, 0, 0, 0.75)";
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -355,20 +407,36 @@ game_code = """
         function loop() {
             update();
             draw();
-            if (!gameOver) {
+            if (gameStarted && !gameOver) {
                 animationFrameId = requestAnimationFrame(loop);
             }
         }
 
-        function resetGame() {
-            cancelAnimationFrame(animationFrameId);
+        function startGame() {
+            initAudio();
+            if (audioCtx.state === "suspended") {
+                audioCtx.resume();
+            }
+            startBtn.style.display = "none";
+            gameStarted = true;
             init();
+            startBGM();
             loop();
         }
 
-        // 게임 시작
-        init();
-        loop();
+        function resetGame() {
+            cancelAnimationFrame(animationFrameId);
+            initAudio();
+            if (audioCtx.state === "suspended") {
+                audioCtx.resume();
+            }
+            init();
+            startBGM();
+            loop();
+        }
+
+        // 초기 화면 그리기
+        draw();
     </script>
 </body>
 </html>
