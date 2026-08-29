@@ -1,7 +1,7 @@
 import streamlit as st
 import streamlit.components.v1 as components
 
-st.title("📐 Streamlit Geometry Dash (Improved Jump & Terrain)")
+st.title("📐 Streamlit Geometry Dash (Spaced Stairs & Platforms)")
 
 # HTML/JS 기반 게임 코드
 game_code = """
@@ -86,7 +86,7 @@ game_code = """
         <!-- 난이도 선택 화면 -->
         <div id="startOverlay" class="ui-overlay">
             <div class="title-text">GEOMETRY DASH</div>
-            <div class="sub-text">TERRAIN & JUMP MAP - 난이도를 선택하세요</div>
+            <div class="sub-text">JUMP STAIRS & PLATFORMS - 난이도를 선택하세요</div>
             <div class="btn-container">
                 <button class="btn btn-easy" onclick="selectDifficulty('easy')">1단계: 이지</button>
                 <button class="btn btn-hard" onclick="selectDifficulty('hard')">2단계: 하드</button>
@@ -104,7 +104,7 @@ game_code = """
             </div>
         </div>
     </div>
-    <div id="info"><b>조작법:</b> 스페이스바, 위쪽 화살표 또는 클릭 (점프) | 계단은 자연스럽게 걸어서 올라갑니다!</div>
+    <div id="info"><b>조작법:</b> 스페이스바, 위쪽 화살표 또는 클릭 (점프) | 넓어진 계단과 조형물을 점프하여 올라가세요!</div>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
@@ -113,9 +113,9 @@ game_code = """
         const gameOverOverlay = document.getElementById("gameOverOverlay");
         const finalScoreText = document.getElementById("finalScore");
 
-        const FLOOR_Y = 240; // 바닥 기본 높이
+        const FLOOR_Y = 240;
 
-        // Web Audio API
+        // Web Audio API BGM
         let audioCtx = null;
         let bgmInterval = null;
 
@@ -228,7 +228,7 @@ game_code = """
         let coinsCollected = 0;
         let gameSpeed = 5;
         let gravity = 0.6;
-        let jumpForce = -9; // 기존보다 점프력을 대폭 낮춰 적절한 수치로 조정
+        let jumpForce = -9.2;
         let player, obstacles, terrains, coins, frameCount, animationFrameId;
 
         function init(mode) {
@@ -241,19 +241,18 @@ game_code = """
             terrains = [];
             coins = [];
 
-            // 점프력 및 속도 세밀 재조정
             if (mode === 'easy') {
                 gameSpeed = 5;
-                gravity = 0.55;
-                jumpForce = -9.0;
+                gravity = 0.58;
+                jumpForce = -9.2;
             } else if (mode === 'hard') {
                 gameSpeed = 7.5;
-                gravity = 0.7;
-                jumpForce = -10.2;
+                gravity = 0.72;
+                jumpForce = -10.5;
             } else if (mode === 'extreme') {
                 gameSpeed = 12;
-                gravity = 0.9;
-                jumpForce = -11.5;
+                gravity = 0.92;
+                jumpForce = -12.0;
             }
 
             player = {
@@ -282,66 +281,86 @@ game_code = """
         });
         canvas.addEventListener("mousedown", jump);
 
-        // 다양한 지형 및 구조물 스폰
+        // 간격이 넓은 계단 및 가로 조형물 스폰
         function spawnElements() {
             const rand = Math.random();
 
-            if (rand < 0.3) {
-                // 1. 오르막/내리막 계단 구조물 (자연스럽게 걸어 올라감)
-                const stepWidth = 30;
-                const stepHeight = 18;
+            if (rand < 0.4) {
+                // 1. 간격이 넓어 점프해서 올라가는 계단 (Spaced Stairs)
+                const stepWidth = 35;
+                const stepGap = 25; // 계단 사이 간격
+                const stepHeight = 22;
                 const totalSteps = 3;
 
-                // 올라가는 계단
                 for (let i = 0; i < totalSteps; i++) {
+                    const stepX = canvas.width + (i * (stepWidth + stepGap));
+                    const stepY = FLOOR_Y - ((i + 1) * stepHeight);
+
                     terrains.push({
                         type: 'stair',
-                        x: canvas.width + (i * stepWidth),
-                        y: FLOOR_Y - ((i + 1) * stepHeight),
+                        x: stepX,
+                        y: stepY,
                         width: stepWidth,
-                        height: (i + 1) * stepHeight
+                        height: FLOOR_Y - stepY
                     });
-                }
-                // 정상 평지
-                terrains.push({
-                    type: 'stair',
-                    x: canvas.width + (totalSteps * stepWidth),
-                    y: FLOOR_Y - (totalSteps * stepHeight),
-                    width: stepWidth * 2,
-                    height: totalSteps * stepHeight
-                });
 
-                // 코인 배치
+                    // 계단 사이 바닥에 가시 배치
+                    if (i < totalSteps - 1) {
+                        obstacles.push({
+                            type: 'spike',
+                            x: stepX + stepWidth + 2,
+                            y: FLOOR_Y - 22,
+                            width: 20,
+                            height: 22
+                        });
+                    }
+                }
+
+                // 마지막 계단 위에 코인
+                const lastX = canvas.width + ((totalSteps - 1) * (stepWidth + stepGap));
                 coins.push({
-                    x: canvas.width + (totalSteps * stepWidth) + stepWidth,
+                    x: lastX + stepWidth / 2,
                     y: FLOOR_Y - (totalSteps * stepHeight) - 20,
                     radius: 8,
                     collected: false
                 });
 
-            } else if (rand < 0.55) {
-                // 2. 낭떠러지 지형 (Pit) + 공중 플랫폼
-                const pitWidth = 100;
+            } else if (rand < 0.7) {
+                // 2. 가로로 길쭉한 대형 발판 조형물 (Long Horizontal Structure)
+                const longWidth = 140;
+                const longHeight = 22;
+                const longY = FLOOR_Y - (Math.random() * 30 + 45); // 점프해서 올라갈 수 있는 높이
+
                 terrains.push({
-                    type: 'pit',
+                    type: 'structure',
                     x: canvas.width,
-                    width: pitWidth
+                    y: longY,
+                    width: longWidth,
+                    height: longHeight
                 });
 
-                // 낭떠러지 위에 건너뛸 공중 발판
-                const platWidth = 50;
-                terrains.push({
-                    type: 'platform',
-                    x: canvas.width + (pitWidth / 2) - (platWidth / 2),
-                    y: FLOOR_Y - 45,
-                    width: platWidth,
-                    height: 18
-                });
+                // 길쭉한 조형물 위에 가시 또는 코인 생성
+                if (Math.random() > 0.5) {
+                    obstacles.push({
+                        type: 'spike',
+                        x: canvas.width + 60,
+                        y: longY - 22,
+                        width: 20,
+                        height: 22
+                    });
+                } else {
+                    coins.push({
+                        x: canvas.width + 70,
+                        y: longY - 20,
+                        radius: 8,
+                        collected: false
+                    });
+                }
 
-            } else if (rand < 0.8) {
-                // 3. 가시 장애물 (지형 위나 바닥에 생성)
-                const count = Math.random() > 0.5 ? 2 : 1;
-                for (let i = 0; i < count; i++) {
+            } else {
+                // 3. 단독 가시 장애물
+                const spikeCount = Math.random() > 0.5 ? 2 : 1;
+                for (let i = 0; i < spikeCount; i++) {
                     obstacles.push({
                         type: 'spike',
                         x: canvas.width + (i * 22),
@@ -350,24 +369,6 @@ game_code = """
                         height: 26
                     });
                 }
-            } else {
-                // 4. 공중 블록 지형 및 가시 조합
-                terrains.push({
-                    type: 'platform',
-                    x: canvas.width,
-                    y: FLOOR_Y - 50,
-                    width: 80,
-                    height: 20
-                });
-
-                // 공중 발판 위의 가시
-                obstacles.push({
-                    type: 'spike',
-                    x: canvas.width + 30,
-                    y: FLOOR_Y - 50 - 22,
-                    width: 20,
-                    height: 22
-                });
             }
         }
 
@@ -378,95 +379,63 @@ game_code = """
             player.vy += gravity;
             player.y += player.vy;
 
-            // 공중 회전 애니메이션
+            // 공중 회전
             if (!player.isGrounded) {
                 player.rotation += 0.12;
             } else {
                 player.rotation = Math.round(player.rotation / (Math.PI / 2)) * (Math.PI / 2);
             }
 
-            // 스폰 관리
+            // 스폰
             frameCount++;
-            const spawnInterval = currentMode === 'extreme' ? 40 : (currentMode === 'hard' ? 55 : 70);
+            const spawnInterval = currentMode === 'extreme' ? 45 : (currentMode === 'hard' ? 60 : 75);
             if (frameCount % spawnInterval === 0) {
                 spawnElements();
             }
 
-            // 지형 및 오브젝트 이동
+            // 이동
             for (let t of terrains) t.x -= gameSpeed;
             for (let obs of obstacles) obs.x -= gameSpeed;
             for (let coin of coins) coin.x -= gameSpeed;
 
-            // --- 지형 및 바닥 충돌 판정 (Step-up 로직) ---
-            let groundY = FLOOR_Y; // 기본 바닥 높이
+            // --- 지형 충돌 처리 ---
             player.isGrounded = false;
 
-            // 낭떠러지(Pit) 확인
-            let inPit = false;
             for (let t of terrains) {
-                if (t.type === 'pit') {
-                    if (player.x + player.width > t.x && player.x < t.x + t.width) {
-                        inPit = true;
-                    }
-                }
-            }
+                const pRight = player.x + player.width;
+                const pLeft = player.x;
+                const pBottom = player.y + player.height;
+                const pTop = player.y;
 
-            if (inPit) {
-                groundY = canvas.height + 100; // 낭떠러지 영역에서는 바닥이 없어짐 (낙사)
-            }
+                const tRight = t.x + t.width;
+                const tLeft = t.x;
+                const tTop = t.y;
+                const tBottom = t.y + t.height;
 
-            // 지형(계단, 발판) 충돌 처리
-            const STEP_HEIGHT_MAX = 20; // 스무스하게 발로 걸어 올라갈 수 있는 최대 턱 높이
-
-            for (let t of terrains) {
-                if (t.type === 'stair' || t.type === 'platform') {
-                    const pRight = player.x + player.width;
-                    const pLeft = player.x;
-                    const pBottom = player.y + player.height;
-                    const pTop = player.y;
-
-                    const tRight = t.x + t.width;
-                    const tLeft = t.x;
-                    const tTop = t.y;
-                    const tBottom = t.y + t.height;
-
-                    // 수평 범위 내에 플레이어가 있을 때
-                    if (pRight > tLeft && pLeft < tRight) {
-                        // 1. 발판/계단 착지
-                        if (player.vy >= 0 && pBottom >= tTop && pBottom - player.vy <= tTop + STEP_HEIGHT_MAX) {
-                            player.y = tTop - player.height;
-                            player.vy = 0;
-                            player.isGrounded = true;
-                        } 
-                        // 2. 계단 걸어 올라가기 (계단 턱이 높지 않을 때)
-                        else if (pBottom > tTop && pBottom - tTop <= STEP_HEIGHT_MAX) {
-                            player.y = tTop - player.height;
-                            player.vy = 0;
-                            player.isGrounded = true;
-                        }
-                        // 3. 완전히 정면으로 벽에 부딪힘
-                        else if (pBottom > tTop + STEP_HEIGHT_MAX && pTop < tBottom) {
-                            if (pRight - gameSpeed <= tLeft) {
-                                triggerGameOver();
-                            }
+                if (pRight > tLeft && pLeft < tRight) {
+                    // 1. 발판/계단 착지 판정 (위에서 내려올 때)
+                    if (player.vy >= 0 && pBottom >= tTop && pBottom - player.vy <= tTop + 12) {
+                        player.y = tTop - player.height;
+                        player.vy = 0;
+                        player.isGrounded = true;
+                    } 
+                    // 2. 옆면 정면 충돌 (사망)
+                    else if (pBottom > tTop + 8 && pTop < tBottom) {
+                        if (pRight - gameSpeed <= tLeft) {
+                            triggerGameOver();
                         }
                     }
                 }
             }
 
-            // 기본 평지 착지
-            if (!inPit && player.y + player.height >= groundY) {
-                player.y = groundY - player.height;
+            // 기본 바닥 착지
+            if (player.y + player.height >= FLOOR_Y) {
+                player.y = FLOOR_Y - player.height;
                 player.vy = 0;
                 player.isGrounded = true;
             }
 
-            // 낭떠러지로 추락했을 때 사망
-            if (player.y > canvas.height + 20) {
-                triggerGameOver();
-            }
-
-            // --- 가시 장애물 충돌 판정 ---
+            // --- 가시 충돌 판정 ---
             for (let obs of obstacles) {
                 if (obs.type === 'spike') {
                     if (
@@ -492,7 +461,7 @@ game_code = """
                 }
             }
 
-            // 화면 벗어난 요소 정리
+            // 화면 밖 제거
             if (terrains.length > 0 && terrains[0].x + 200 < 0) terrains.shift();
             if (obstacles.length > 0 && obstacles[0].x + 100 < 0) obstacles.shift();
             while (coins.length > 0 && coins[0].x + coins[0].radius < 0) coins.shift();
@@ -512,47 +481,40 @@ game_code = """
 
             if (!gameStarted) return;
 
-            // 1. 기본 바닥 그리기 (낭떠러지 제외)
+            // 1. 기본 바닥
             ctx.fillStyle = "#222233";
             ctx.fillRect(0, FLOOR_Y, canvas.width, canvas.height - FLOOR_Y);
-
-            // 낭떠러지(Pit) 비우기
-            for (let t of terrains) {
-                if (t.type === 'pit') {
-                    ctx.clearRect(t.x, FLOOR_Y, t.width, canvas.height - FLOOR_Y);
-                }
-            }
-
-            // 바닥 선
             ctx.strokeStyle = "#00ffff";
             ctx.lineWidth = 3;
             ctx.beginPath();
             ctx.moveTo(0, FLOOR_Y);
-            for (let t of terrains) {
-                if (t.type === 'pit') {
-                    ctx.lineTo(t.x, FLOOR_Y);
-                    ctx.moveTo(t.x + t.width, FLOOR_Y);
-                }
-            }
             ctx.lineTo(canvas.width, FLOOR_Y);
             ctx.stroke();
 
-            // 2. 계단 및 발판 지형 그리기
+            // 2. 지형 (계단 및 가로 길쭉한 발판 조형물)
             for (let t of terrains) {
-                if (t.type === 'stair' || t.type === 'platform') {
+                if (t.type === 'stair') {
                     ctx.fillStyle = "#0088ff";
                     ctx.fillRect(t.x, t.y, t.width, t.height);
                     ctx.strokeStyle = "#ffffff";
                     ctx.lineWidth = 1.5;
                     ctx.strokeRect(t.x, t.y, t.width, t.height);
-
-                    // 지형 표면 윗선 강조
                     ctx.fillStyle = "#00ffff";
+                    ctx.fillRect(t.x, t.y, t.width, 3);
+                } else if (t.type === 'structure') {
+                    // 가로 길쭉한 특수 조형물
+                    ctx.fillStyle = "#00aaff";
+                    ctx.fillRect(t.x, t.y, t.width, t.height);
+                    ctx.strokeStyle = "#00ffff";
+                    ctx.lineWidth = 2;
+                    ctx.strokeRect(t.x, t.y, t.width, t.height);
+                    // 상단 라이팅 효과
+                    ctx.fillStyle = "#ffffff";
                     ctx.fillRect(t.x, t.y, t.width, 3);
                 }
             }
 
-            // 3. 가시 장애물
+            // 3. 가시
             for (let obs of obstacles) {
                 if (obs.type === 'spike') {
                     ctx.fillStyle = "#ffaa00";
@@ -592,7 +554,6 @@ game_code = """
             ctx.lineWidth = 2;
             ctx.strokeRect(-player.width / 2, -player.height / 2, player.width, player.height);
 
-            // 눈
             ctx.fillStyle = "#111";
             ctx.fillRect(-5, -5, 4, 4);
             ctx.fillRect(2, -5, 4, 4);
