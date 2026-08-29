@@ -69,7 +69,7 @@ game_code = """
         const startBtn = document.getElementById("startBtn");
         const restartBtn = document.getElementById("restartBtn");
 
-        // Web Audio API 설정 (저작권 무료 자체 신디사이저 BGM)
+        // Web Audio API 설정 (피아노 + 바이올린 + 베이스 합성)
         let audioCtx = null;
         let bgmInterval = null;
 
@@ -79,36 +79,100 @@ game_code = """
             }
         }
 
-        // BGM 루프 재생 (테크노/전자음 스타일)
+        // 음고(Hz) 변환 표 (Am 키 기반)
+        const FREQS = {
+            A2: 110.00, C3: 130.81, E3: 164.81, G3: 196.00,
+            A3: 220.00, C4: 261.63, E4: 329.63, F4: 349.23,
+            G4: 392.00, A4: 440.00, B4: 493.88, C5: 523.25, E5: 659.25
+        };
+
+        // 피아노음 생성 (부드럽고 빠른 감쇄)
+        function playPiano(freq, time, duration = 0.25) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+
+            osc.type = "triangle"; // 피아노 톤에 가까운 삼각파
+            osc.frequency.setValueAtTime(freq, time);
+
+            gain.gain.setValueAtTime(0.15, time);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            osc.start(time);
+            osc.stop(time + duration);
+        }
+
+        // 바이올린/스트링음 생성 (바이브라토 + 풍성한 배음)
+        function playViolin(freq, time, duration = 0.5) {
+            if (!audioCtx) return;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            const lfo = audioCtx.createOscillator(); // 바이브라토 연출용
+            const lfoGain = audioCtx.createGain();
+
+            osc.type = "sawtooth";
+            osc.frequency.setValueAtTime(freq, time);
+
+            // 바이브라토 (떨림) 설정
+            lfo.frequency.setValueAtTime(6, time); // 6Hz 떨림
+            lfoGain.gain.setValueAtTime(3, time); // 떨림 폭
+            lfo.connect(osc.frequency);
+
+            // 서서히 커졌다가 감싸안듯 줄어드는 볼륨 커브
+            gain.gain.setValueAtTime(0.01, time);
+            gain.gain.linearRampToValueAtTime(0.08, time + 0.1);
+            gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
+
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            lfo.start(time);
+            osc.start(time);
+            
+            lfo.stop(time + duration);
+            osc.stop(time + duration);
+        }
+
+        // 지오메트리 대쉬 스타일 BGM 시퀀서
         function startBGM() {
             if (!audioCtx) return;
             stopBGM();
 
-            const notes = [130.81, 146.83, 164.81, 174.61, 196.00, 220.00, 246.94, 261.63]; // C3 ~ C4
+            // 빠른 피아노 메인 리프 패턴
+            const pianoMelody = [
+                FREQS.A4, FREQS.C5, FREQS.E5, FREQS.C5,
+                FREQS.G4, FREQS.B4, FREQS.E5, FREQS.B4,
+                FREQS.F4, FREQS.A4, FREQS.C5, FREQS.A4,
+                FREQS.E4, FREQS.G4, FREQS.B4, FREQS.G4
+            ];
+
+            // 웅장하게 받쳐주는 바이올린 화음 패턴
+            const violinChords = [
+                FREQS.A4, FREQS.G4, FREQS.F4, FREQS.E4
+            ];
+
             let step = 0;
 
             bgmInterval = setInterval(() => {
                 if (!audioCtx || audioCtx.state === "suspended") return;
-                
-                const osc = audioCtx.createOscillator();
-                const gain = audioCtx.createGain();
-                
-                osc.type = "sawtooth";
-                // 신나는 베이스라인 멜로디 루프
-                const freq = notes[(step * 3) % notes.length];
-                osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
 
-                gain.gain.setValueAtTime(0.05, audioCtx.currentTime);
-                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.12);
+                const now = audioCtx.currentTime;
 
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
+                // 1. 빠른 피아노 멜로디 (매 비트마다)
+                const pFreq = pianoMelody[step % pianoMelody.length];
+                playPiano(pFreq, now, 0.2);
 
-                osc.start();
-                osc.stop(audioCtx.currentTime + 0.12);
+                // 2. 4비트마다 배경을 채워주는 바이올린 롱톤
+                if (step % 4 === 0) {
+                    const vFreq = violinChords[Math.floor(step / 4) % violinChords.length];
+                    playViolin(vFreq, now, 0.6);
+                }
 
                 step++;
-            }, 130); // 템포 조절
+            }, 120); // 125 BPM
         }
 
         function stopBGM() {
@@ -293,7 +357,6 @@ game_code = """
         function draw() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 시작 전 타이틀 화면 처리
             if (!gameStarted) {
                 ctx.fillStyle = "#ffffff";
                 ctx.font = "bold 28px sans-serif";
@@ -435,12 +498,11 @@ game_code = """
             loop();
         }
 
-        // 초기 화면 그리기
         draw();
     </script>
 </body>
 </html>
 """
 
-# HTML 컴포넌트를 Streamlit 화면에 렌더링
+# HTML 컴포넌트 렌더링
 components.html(game_code, height=380)
