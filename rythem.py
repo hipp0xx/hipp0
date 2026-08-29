@@ -64,7 +64,7 @@ game_code = """
         let gameOver = false;
         let score = 0;
         let player, obstacles, frameCount, animationFrameId;
-        let trail = []; // 잔상(궤적) 위치 저장 배열
+        let trail = [];
 
         // 게임 초기화 함수
         function init() {
@@ -73,12 +73,12 @@ game_code = """
             score = 0;
             frameCount = 0;
             obstacles = [];
-            trail = []; // 잔상 초기화
+            trail = [];
 
             player = {
                 x: 80,
                 y: canvas.height / 2,
-                size: 12,
+                size: 10,
                 speedY: 4
             };
 
@@ -95,15 +95,31 @@ game_code = """
         canvas.addEventListener("mousedown", () => isPressing = true);
         canvas.addEventListener("mouseup", () => isPressing = false);
 
+        // 다양한 장애물 생성 (공중 블록, 공중 가시, 천장/바닥 가시)
         function spawnObstacle() {
-            const height = Math.random() * 120 + 30;
-            const isTop = Math.random() > 0.5;
-            obstacles.push({
-                x: canvas.width,
-                y: isTop ? 0 : canvas.height - height,
-                width: 30,
-                height: height
-            });
+            const type = Math.floor(Math.random() * 3); // 0: 공중 블록, 1: 공중 가시, 2: 대형 벽
+            
+            if (type === 0) {
+                // 공중에 떠 있는 블록
+                const h = 40;
+                const y = Math.random() * (canvas.height - 120) + 40;
+                obstacles.push({ type: 'block', x: canvas.width, y: y, width: 35, height: h });
+            } else if (type === 1) {
+                // 공중에 떠 있는 가시 (삼각형)
+                const y = Math.random() * (canvas.height - 100) + 50;
+                obstacles.push({ type: 'spike', x: canvas.width, y: y, width: 25, height: 30 });
+            } else {
+                // 상단 또는 하단에 붙어있는 벽
+                const isTop = Math.random() > 0.5;
+                const h = Math.random() * 80 + 40;
+                obstacles.push({
+                    type: 'block',
+                    x: canvas.width,
+                    y: isTop ? 0 : canvas.height - h,
+                    width: 30,
+                    height: h
+                });
+            }
         }
 
         function update() {
@@ -116,13 +132,12 @@ game_code = """
                 player.y += player.speedY;
             }
 
-            // 잔상 위치 기록 및 왼쪽으로 이동
+            // 잔상 위치 기록 및 이동
             const gameSpeed = 5;
             trail.push({ x: player.x, y: player.y });
             for (let i = 0; i < trail.length; i++) {
                 trail[i].x -= gameSpeed;
             }
-            // 화면 왼쪽 밖으로 나간 잔상 좌표 제거
             while (trail.length > 0 && trail[0].x < 0) {
                 trail.shift();
             }
@@ -132,17 +147,18 @@ game_code = """
                 triggerGameOver();
             }
 
-            // 장애물 생성 및 이동
+            // 장애물 생성
             frameCount++;
-            if (frameCount % 60 === 0) {
+            if (frameCount % 45 === 0) { // 장애물 출현 간격
                 spawnObstacle();
             }
 
+            // 장애물 이동 및 충돌 체크
             for (let i = 0; i < obstacles.length; i++) {
                 let obs = obstacles[i];
-                obs.x -= gameSpeed; // 장애물 속도
+                obs.x -= gameSpeed;
 
-                // 플레이어와 장애물 충돌 검사
+                // 간단한 AABB 박스 충돌 판정
                 if (
                     player.x + player.size > obs.x &&
                     player.x - player.size < obs.x + obs.width &&
@@ -168,17 +184,16 @@ game_code = """
         }
 
         function draw() {
-            // 배경 지우기
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-            // 1. 잔상 (궤적) 그리기
+            // 1. 잔상 그리기
             if (trail.length > 1) {
                 ctx.beginPath();
                 ctx.moveTo(trail[0].x, trail[0].y);
                 for (let i = 1; i < trail.length; i++) {
                     ctx.lineTo(trail[i].x, trail[i].y);
                 }
-                ctx.lineTo(player.x, player.y); // 현재 화살표 위치까지 연결
+                ctx.lineTo(player.x, player.y);
                 ctx.strokeStyle = "rgba(0, 255, 255, 0.8)";
                 ctx.lineWidth = 4;
                 ctx.lineCap = "round";
@@ -186,16 +201,34 @@ game_code = """
                 ctx.shadowBlur = 8;
                 ctx.shadowColor = "#00ffff";
                 ctx.stroke();
-                ctx.shadowBlur = 0; // 다른 항목에 영향 없도록 그림자 해제
+                ctx.shadowBlur = 0;
             }
 
             // 2. 장애물 그리기
-            ctx.fillStyle = "#ff0055";
             for (let obs of obstacles) {
-                ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                if (obs.type === 'block') {
+                    // 공중/바닥 사각형 블록
+                    ctx.fillStyle = "#ff0055";
+                    ctx.fillRect(obs.x, obs.y, obs.width, obs.height);
+                    ctx.strokeStyle = "#ffffff";
+                    ctx.lineWidth = 1;
+                    ctx.strokeRect(obs.x, obs.y, obs.width, obs.height);
+                } else if (obs.type === 'spike') {
+                    // 공중 가시 (삼각형)
+                    ctx.fillStyle = "#ffaa00";
+                    ctx.beginPath();
+                    ctx.moveTo(obs.x, obs.y + obs.height); // 좌하단
+                    ctx.lineTo(obs.x + obs.width / 2, obs.y); // 중앙 상단
+                    ctx.lineTo(obs.x + obs.width, obs.y + obs.height); // 우하단
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.strokeStyle = "#ffffff";
+                    ctx.lineWidth = 1;
+                    ctx.stroke();
+                }
             }
 
-            // 3. 플레이어 그리기 (화살표 모양)
+            // 3. 플레이어 그리기 (화살표)
             ctx.fillStyle = "#00ffff";
             ctx.beginPath();
             ctx.moveTo(player.x + player.size, player.y);
