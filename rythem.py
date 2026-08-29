@@ -1,687 +1,1085 @@
-import streamlit as st
-import streamlit.components.v1 as components
-
-st.title("📐 Geometry Dash (Rings & Pads Added)")
-
-game_code = """
 <!DOCTYPE html>
-<html>
+<html lang="ko">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geometry Dash Web - Wave Fix & Enhanced Pads</title>
     <style>
-        body {
+        * {
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-user-select: none;
             margin: 0;
-            background-color: #111;
+            padding: 0;
+        }
+
+        body {
+            background-color: #0b0c10;
+            color: #ffffff;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             display: flex;
-            justify-content: center;
-            align-items: center;
-            color: white;
-            font-family: sans-serif;
             flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 100vh;
+            overflow: hidden;
         }
+
+        #game-container {
+            position: relative;
+            width: 960px;
+            height: 540px;
+            background: #000;
+            border-radius: 12px;
+            box-shadow: 0 0 30px rgba(0, 240, 255, 0.3), 0 0 10px rgba(0, 0, 0, 0.8);
+            overflow: hidden;
+        }
+
         canvas {
-            border: 2px solid #333;
-            background-color: #050508;
+            display: block;
+            width: 100%;
+            height: 100%;
         }
-        #info {
-            margin-top: 10px;
-            font-size: 14px;
-            color: #aaa;
-        }
-        .ui-overlay {
+
+        /* HUD Overlay */
+        #hud {
             position: absolute;
             top: 0;
             left: 0;
-            width: 600px;
-            height: 300px;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
             display: flex;
             flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            background-color: rgba(0, 0, 0, 0.75);
-            z-index: 10;
+            justify-content: space-between;
+            padding: 16px;
         }
-        .btn-container {
+
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 100%;
+        }
+
+        .progress-container {
+            flex-grow: 1;
+            max-width: 400px;
+            height: 16px;
+            background: rgba(255, 255, 255, 0.15);
+            border-radius: 8px;
+            overflow: hidden;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            margin: 0 20px;
+            position: relative;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, #00f0ff, #7000ff);
+            box-shadow: 0 0 10px #00f0ff;
+            transition: width 0.1s linear;
+        }
+
+        .stats-text {
+            font-size: 18px;
+            font-weight: 800;
+            text-shadow: 0 0 6px rgba(0, 240, 255, 0.8), 2px 2px 4px #000;
+            letter-spacing: 1px;
+        }
+
+        .mode-badge {
+            background: rgba(0, 0, 0, 0.6);
+            border: 2px solid #00f0ff;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #00f0ff;
+            text-transform: uppercase;
+            box-shadow: 0 0 10px rgba(0, 240, 255, 0.4);
+        }
+
+        /* Menu Overlay */
+        .overlay-screen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(10, 10, 20, 0.85);
+            backdrop-filter: blur(8px);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 10;
+            pointer-events: auto;
+        }
+
+        h1 {
+            font-size: 48px;
+            font-weight: 900;
+            background: linear-gradient(45deg, #00f0ff, #ff007f, #ffe600);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 10px;
+            text-shadow: 0 0 20px rgba(0, 240, 255, 0.5);
+            letter-spacing: 2px;
+        }
+
+        .sub-title {
+            color: #a0a0c0;
+            font-size: 16px;
+            margin-bottom: 30px;
+        }
+
+        .btn-group {
+            display: flex;
+            gap: 16px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #00f0ff, #0072ff);
+            color: #fff;
+            border: none;
+            padding: 14px 32px;
+            font-size: 18px;
+            font-weight: bold;
+            border-radius: 30px;
+            cursor: pointer;
+            box-shadow: 0 0 15px rgba(0, 240, 255, 0.5);
+            transition: all 0.2s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-3px) scale(1.05);
+            box-shadow: 0 0 25px rgba(0, 240, 255, 0.8);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #ff007f, #7000ff);
+            box-shadow: 0 0 15px rgba(255, 0, 127, 0.5);
+        }
+
+        .btn-secondary:hover {
+            box-shadow: 0 0 25px rgba(255, 0, 127, 0.8);
+        }
+
+        .controls-hint {
+            position: absolute;
+            bottom: 20px;
+            color: #888;
+            font-size: 14px;
+            text-align: center;
+            line-height: 1.6;
+        }
+
+        .key {
+            background: #222;
+            border: 1px solid #555;
+            padding: 2px 8px;
+            border-radius: 4px;
+            color: #fff;
+            font-weight: bold;
+        }
+
+        /* Practice Mode Controls */
+        .practice-controls {
+            position: absolute;
+            bottom: 16px;
+            left: 16px;
             display: flex;
             gap: 10px;
-            margin-top: 15px;
+            pointer-events: auto;
         }
-        .btn {
-            padding: 10px 20px;
-            font-size: 16px;
-            font-weight: bold;
-            color: white;
-            border: none;
-            border-radius: 6px;
-            cursor: pointer;
-            transition: 0.2s;
-        }
-        .btn-start { background-color: #00cc66; }
-        .btn-start:hover { background-color: #00ff80; }
-        .btn-restart { background-color: #0099ff; }
-        .btn-restart:hover { background-color: #33b5ff; }
-        .title-text {
-            font-size: 26px;
-            font-weight: bold;
+
+        .btn-small {
+            background: rgba(0, 0, 0, 0.7);
+            border: 1px solid #00f0ff;
             color: #fff;
-            margin-bottom: 5px;
+            padding: 6px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
         }
-        .sub-text {
-            font-size: 14px;
-            color: #00ffff;
-            margin-bottom: 15px;
+
+        .btn-small:hover {
+            background: #00f0ff;
+            color: #000;
         }
     </style>
 </head>
 <body>
-    <div style="position: relative; display: flex; justify-content: center; align-items: center;">
-        <canvas id="gameCanvas" width="600" height="300"></canvas>
 
-        <!-- 시작 화면 -->
-        <div id="startOverlay" class="ui-overlay">
-            <div class="title-text">GEOMETRY DASH</div>
-            <div class="sub-text">공중 점프링(공점) & 점프 발판 추가!</div>
-            <div class="btn-container">
-                <button class="btn btn-start" onclick="startGame()">게임 시작 🚀</button>
+    <div id="game-container">
+        <canvas id="gameCanvas" width="960" height="540"></canvas>
+
+        <!-- HUD -->
+        <div id="hud">
+            <div class="top-bar">
+                <div class="stats-text" id="attemptText">시도: 1</div>
+                <div class="progress-container">
+                    <div class="progress-bar" id="progressBar"></div>
+                </div>
+                <div class="stats-text" id="percentText">0%</div>
+                <div class="mode-badge" id="modeBadge">CUBE</div>
+            </div>
+
+            <div class="practice-controls" id="practiceControls" style="display: none;">
+                <button class="btn-small" id="btnCheckpoint">+ 체크포인트 (Z)</button>
+                <button class="btn-small" id="btnRemoveCheckpoint">- 삭제 (X)</button>
             </div>
         </div>
 
-        <!-- 게임 오버 화면 -->
-        <div id="gameOverOverlay" class="ui-overlay" style="display: none;">
-            <div class="title-text" style="color: #ff3333;">GAME OVER</div>
-            <div id="finalScore" class="sub-text" style="color: #fff;">SCORE: 0</div>
-            <div class="btn-container">
-                <button class="btn btn-restart" onclick="restartGame()">다시 시작 🔄</button>
+        <!-- Start Overlay -->
+        <div class="overlay-screen" id="startScreen">
+            <h1>GEOMETRY DASH</h1>
+            <p class="sub-title">웨이브 모드 수정 & 개선된 점프발판 버전</p>
+            <div class="btn-group">
+                <button class="btn" id="btnPlay">일반 모드 시작</button>
+                <button class="btn btn-secondary" id="btnPractice">연습 모드</button>
+            </div>
+            <div class="controls-hint">
+                점프 / 비행 / 웨이브 조작: <span class="key">Space</span> / <span class="key">마우스 클릭</span> / <span class="key">↑ 화살표</span><br>
+                연습모드 체크포인트: <span class="key">Z</span> 생성 | <span class="key">X</span> 삭제 | 일시정지: <span class="key">P</span> / <span class="key">Esc</span>
+            </div>
+        </div>
+
+        <!-- Death/Game Over Screen -->
+        <div class="overlay-screen" id="deathScreen" style="display: none;">
+            <h1 style="background: linear-gradient(45deg, #ff0055, #ff5500); -webkit-background-clip: text;">CRASHED!</h1>
+            <p class="sub-title" id="deathMessage">진행도: 0%</p>
+            <div class="btn-group">
+                <button class="btn" id="btnRestart">다시 시도</button>
             </div>
         </div>
     </div>
-    <div id="info"><b>조작법:</b> CUBE(점프 / 공점 근처에서 클릭 시 공중 점프) | WAVE(대각 이동)</div>
 
     <script>
-        const canvas = document.getElementById("gameCanvas");
-        const ctx = canvas.getContext("2d");
-        const startOverlay = document.getElementById("startOverlay");
-        const gameOverOverlay = document.getElementById("gameOverOverlay");
-        const finalScoreText = document.getElementById("finalScore");
-
-        const FLOOR_Y = 270;
-        const CEIL_Y = 10;
-
+        // --- Web Audio API Synthesizer Sound Generator ---
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
         let audioCtx = null;
-        let bgmInterval = null;
 
         function initAudio() {
             if (!audioCtx) {
-                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                audioCtx = new AudioCtx();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
             }
         }
 
-        const FREQS = {
-            A2: 110.00, C3: 130.81, E3: 164.81, G3: 196.00,
-            A3: 220.00, C4: 261.63, E4: 329.63, F4: 349.23,
-            G4: 392.00, A4: 440.00, B4: 493.88, C5: 523.25, E5: 659.25
+        function playSound(type) {
+            if (!audioCtx) return;
+            const now = audioCtx.currentTime;
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            if (type === 'jump') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(150, now);
+                osc.frequency.exponentialRampToValueAtTime(400, now + 0.12);
+                gain.gain.setValueAtTime(0.3, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.12);
+                osc.start(now);
+                osc.stop(now + 0.12);
+            } else if (type === 'pad') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(200, now);
+                osc.frequency.exponentialRampToValueAtTime(700, now + 0.2);
+                gain.gain.setValueAtTime(0.5, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.2);
+                osc.start(now);
+                osc.stop(now + 0.2);
+            } else if (type === 'portal') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.linearRampToValueAtTime(600, now + 0.15);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.15);
+                osc.start(now);
+                osc.stop(now + 0.15);
+            } else if (type === 'explode') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(120, now);
+                osc.frequency.exponentialRampToValueAtTime(30, now + 0.3);
+                gain.gain.setValueAtTime(0.6, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            }
+        }
+
+        // --- Game Setup ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // UI Elements
+        const startScreen = document.getElementById('startScreen');
+        const deathScreen = document.getElementById('deathScreen');
+        const deathMessage = document.getElementById('deathMessage');
+        const btnPlay = document.getElementById('btnPlay');
+        const btnPractice = document.getElementById('btnPractice');
+        const btnRestart = document.getElementById('btnRestart');
+        const attemptText = document.getElementById('attemptText');
+        const progressBar = document.getElementById('progressBar');
+        const percentText = document.getElementById('percentText');
+        const modeBadge = document.getElementById('modeBadge');
+        const practiceControls = document.getElementById('practiceControls');
+        const btnCheckpoint = document.getElementById('btnCheckpoint');
+        const btnRemoveCheckpoint = document.getElementById('btnRemoveCheckpoint');
+
+        // Constants & Configs
+        const GRAVITY = 0.85;
+        const JUMP_FORCE = -13.5;
+        const CUBE_SPEED = 7.5;
+        const FLOOR_Y = 440;
+        const CEILING_Y = 60;
+        const PLAYER_SIZE = 36;
+
+        // Enlarged Spike Configs
+        const SPIKE_WIDTH = 42;  // Increased size
+        const SPIKE_HEIGHT = 44; // Increased size
+
+        // Game State Variables
+        let gameState = 'START'; // 'START', 'PLAYING', 'DEAD', 'PAUSED'
+        let isPracticeMode = false;
+        let attempts = 1;
+        let cameraX = 0;
+        let isHoldingInput = false;
+
+        // Player State
+        let player = {
+            x: 100,
+            y: FLOOR_Y - PLAYER_SIZE,
+            vx: CUBE_SPEED,
+            vy: 0,
+            rotation: 0,
+            mode: 'CUBE', // 'CUBE', 'SHIP', 'WAVE'
+            isGrounded: false,
+            gravityDir: 1, // 1 normal, -1 inverted
+            waveTrail: []  // Fix: Safe Wave Trail array
         };
 
-        function playPiano(freq, time, duration = 0.25) {
-            if (!audioCtx) return;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            osc.type = "triangle";
-            osc.frequency.setValueAtTime(freq, time);
-            gain.gain.setValueAtTime(0.15, time);
-            gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            osc.start(time);
-            osc.stop(time + duration);
-        }
+        // Particles
+        let particles = [];
+        let checkpoints = [];
 
-        function playViolin(freq, time, duration = 0.5) {
-            if (!audioCtx) return;
-            const osc = audioCtx.createOscillator();
-            const gain = audioCtx.createGain();
-            const lfo = audioCtx.createOscillator();
-            const lfoGain = audioCtx.createGain();
-            osc.type = "sawtooth";
-            osc.frequency.setValueAtTime(freq, time);
-            lfo.frequency.setValueAtTime(6, time);
-            lfoGain.gain.setValueAtTime(3, time);
-            lfo.connect(osc.frequency);
-            gain.gain.setValueAtTime(0.01, time);
-            gain.gain.linearRampToValueAtTime(0.08, time + 0.1);
-            gain.gain.exponentialRampToValueAtTime(0.001, time + duration);
-            osc.connect(gain);
-            gain.connect(audioCtx.destination);
-            lfo.start(time);
-            osc.start(time);
-            lfo.stop(time + duration);
-            osc.stop(time + duration);
-        }
+        // --- Level Generation ---
+        // Types: 'block', 'spike', 'pad_yellow', 'pad_blue', 'portal_ship', 'portal_wave', 'portal_cube'
+        let levelObjects = [];
+        const LEVEL_LENGTH = 12000;
 
-        function startBGM() {
-            if (!audioCtx) return;
-            stopBGM();
+        function generateLevel() {
+            levelObjects = [];
+            let x = 600;
 
-            const pianoMelody = [
-                FREQS.A4, FREQS.C5, FREQS.E5, FREQS.C5,
-                FREQS.G4, FREQS.B4, FREQS.E5, FREQS.B4,
-                FREQS.F4, FREQS.A4, FREQS.C5, FREQS.A4,
-                FREQS.E4, FREQS.G4, FREQS.B4, FREQS.G4
-            ];
-            const violinChords = [FREQS.A4, FREQS.G4, FREQS.F4, FREQS.E4];
+            // Section 1: Cube Basics & Big Spikes
+            while (x < 2800) {
+                // Spikes
+                if (Math.random() < 0.4) {
+                    levelObjects.push({ type: 'spike', x: x, y: FLOOR_Y - SPIKE_HEIGHT, w: SPIKE_WIDTH, h: SPIKE_HEIGHT });
+                    if (Math.random() < 0.3) {
+                        levelObjects.push({ type: 'spike', x: x + SPIKE_WIDTH, y: FLOOR_Y - SPIKE_HEIGHT, w: SPIKE_WIDTH, h: SPIKE_HEIGHT });
+                    }
+                    x += 180;
+                } 
+                // Blocks with Jump Pads
+                else if (Math.random() < 0.4) {
+                    let blockH = 50 + Math.floor(Math.random() * 2) * 40;
+                    levelObjects.push({ type: 'block', x: x, y: FLOOR_Y - blockH, w: 120, h: blockH });
 
-            let step = 0;
-            bgmInterval = setInterval(() => {
-                if (!audioCtx || audioCtx.state === "suspended") return;
-                const now = audioCtx.currentTime;
-                playPiano(pianoMelody[step % pianoMelody.length], now, 0.2);
-                if (step % 4 === 0) {
-                    playViolin(violinChords[Math.floor(step / 4) % violinChords.length], now, 0.6);
+                    if (Math.random() < 0.5) {
+                        // Improved Pad on block
+                        levelObjects.push({ type: 'pad_yellow', x: x + 40, y: FLOOR_Y - blockH - 14, w: 40, h: 14 });
+                    }
+                    x += 220;
+                } else {
+                    // Ground pad
+                    levelObjects.push({ type: 'pad_yellow', x: x, y: FLOOR_Y - 14, w: 44, h: 14 });
+                    x += 200;
                 }
-                step++;
-            }, 120);
-        }
+            }
 
-        function stopBGM() {
-            if (bgmInterval) {
-                clearInterval(bgmInterval);
-                bgmInterval = null;
+            // Portal to SHIP Mode
+            levelObjects.push({ type: 'portal_ship', x: 2900, y: FLOOR_Y - 160, w: 40, h: 90 });
+
+            // Section 2: Ship Mode (Obstacles in mid-air)
+            x = 3200;
+            while (x < 5500) {
+                let wallHeight = 100 + Math.random() * 140;
+                let isTop = Math.random() < 0.5;
+
+                if (isTop) {
+                    levelObjects.push({ type: 'block', x: x, y: CEILING_Y, w: 80, h: wallHeight });
+                    levelObjects.push({ type: 'spike_down', x: x + 18, y: CEILING_Y + wallHeight, w: SPIKE_WIDTH, h: SPIKE_HEIGHT });
+                } else {
+                    levelObjects.push({ type: 'block', x: x, y: FLOOR_Y - wallHeight, w: 80, h: wallHeight });
+                    levelObjects.push({ type: 'spike', x: x + 18, y: FLOOR_Y - wallHeight - SPIKE_HEIGHT, w: SPIKE_WIDTH, h: SPIKE_HEIGHT });
+                }
+
+                x += 260;
+            }
+
+            // Portal to WAVE Mode
+            levelObjects.push({ type: 'portal_wave', x: 5700, y: FLOOR_Y - 160, w: 40, h: 90 });
+
+            // Section 3: Wave Mode Slaloms
+            x = 6000;
+            while (x < 9000) {
+                // Top hazard
+                let topH = 80 + Math.random() * 100;
+                let botH = 80 + Math.random() * 100;
+
+                levelObjects.push({ type: 'block', x: x, y: CEILING_Y, w: 100, h: topH });
+                levelObjects.push({ type: 'block', x: x, y: FLOOR_Y - botH, w: 100, h: botH });
+
+                x += 300;
+            }
+
+            // Portal back to CUBE Mode
+            levelObjects.push({ type: 'portal_cube', x: 9300, y: FLOOR_Y - 160, w: 40, h: 90 });
+
+            // Final Dash
+            x = 9600;
+            while (x < LEVEL_LENGTH - 400) {
+                levelObjects.push({ type: 'spike', x: x, y: FLOOR_Y - SPIKE_HEIGHT, w: SPIKE_WIDTH, h: SPIKE_HEIGHT });
+                if (Math.random() < 0.5) {
+                    levelObjects.push({ type: 'pad_yellow', x: x - 60, y: FLOOR_Y - 14, w: 44, h: 14 });
+                }
+                x += 280;
             }
         }
 
-        let gameStarted = false;
-        let gameOver = false;
-        let score = 0;
-        const gameSpeed = 5;
-        const gravity = 0.58;
-        const jumpForce = -9.2;
-        const padJumpForce = -12.0;
-        const ringJumpForce = -10.5;
-        const waveSpeedY = 6;
-
-        let playerMode = 'cube';
-        let player, obstacles, terrains, interactiveElements, portals, trail, frameCount, animationFrameId;
-        let isHolding = false;
-        let justPressed = false;
-
-        const modeSequence = ['wave', 'cube'];
-        let modeIndex = 0;
-
-        function init() {
-            gameOver = false;
-            score = 0;
-            frameCount = 0;
-            playerMode = 'cube';
-            modeIndex = 0;
-            obstacles = [];
-            terrains = [];
-            interactiveElements = [];
-            portals = [];
-            trail = [];
-
-            player = {
-                x: 80,
-                y: FLOOR_Y - 24,
-                width: 24,
-                height: 24,
-                vy: 0,
-                isGrounded: true,
-                rotation: 0
-            };
-
-            gameOverOverlay.style.display = "none";
-            startOverlay.style.display = "none";
+        // --- Reset Game ---
+        function resetGame(fullReset = true) {
+            if (fullReset) {
+                player.x = 100;
+                player.y = FLOOR_Y - PLAYER_SIZE;
+                player.vx = CUBE_SPEED;
+                player.vy = 0;
+                player.rotation = 0;
+                player.mode = 'CUBE';
+                player.gravityDir = 1;
+                player.waveTrail = [];
+                cameraX = 0;
+            } else if (checkpoints.length > 0) {
+                // Practice checkpoint restore
+                const cp = checkpoints[checkpoints.length - 1];
+                player.x = cp.x;
+                player.y = cp.y;
+                player.mode = cp.mode;
+                player.gravityDir = cp.gravityDir;
+                player.vx = CUBE_SPEED;
+                player.vy = 0;
+                player.rotation = 0;
+                player.waveTrail = [];
+                cameraX = player.x - 150;
+            }
+            particles = [];
+            modeBadge.innerText = player.mode;
+            modeBadge.style.borderColor = player.mode === 'WAVE' ? '#ff007f' : (player.mode === 'SHIP' ? '#ffe600' : '#00f0ff');
+            modeBadge.style.color = modeBadge.style.borderColor;
         }
 
-        window.addEventListener("keydown", (e) => {
-            if (e.code === "Space" || e.code === "ArrowUp") {
-                if (!isHolding) justPressed = true;
-                isHolding = true;
-            }
-        });
-        window.addEventListener("keyup", (e) => {
-            if (e.code === "Space" || e.code === "ArrowUp") isHolding = false;
-        });
-        canvas.addEventListener("mousedown", () => {
-            if (!isHolding) justPressed = true;
-            isHolding = true;
-        });
-        window.addEventListener("mouseup", () => { isHolding = false; });
+        // --- Controls & Listeners ---
+        function handleInputStart(e) {
+            if (e.type === 'keydown' && e.code !== 'Space' && e.code !== 'ArrowUp' && e.code !== 'KeyZ' && e.code !== 'KeyX') return;
+            initAudio();
 
-        function spawnElements() {
-            // [포탈 스폰] 420프레임(약 7초) 주기
-            if (frameCount > 0 && frameCount % 420 === 0) {
-                const targetMode = modeSequence[modeIndex % modeSequence.length];
-                modeIndex++;
-                portals.push({
-                    x: canvas.width,
-                    y: 100,
-                    width: 35,
-                    height: 110,
-                    targetMode: targetMode
+            if (e.code === 'KeyZ' && isPracticeMode && gameState === 'PLAYING') {
+                checkpoints.push({
+                    x: player.x,
+                    y: player.y,
+                    mode: player.mode,
+                    gravityDir: player.gravityDir
                 });
+                playSound('portal');
                 return;
             }
 
-            // 스폰 패턴 제어 (65프레임 주기)
-            if (frameCount % 65 === 0) {
-                if (playerMode === 'cube') {
-                    const rand = Math.random();
+            if (e.code === 'KeyX' && isPracticeMode && gameState === 'PLAYING') {
+                if (checkpoints.length > 0) checkpoints.pop();
+                return;
+            }
 
-                    if (rand < 0.3) {
-                        // 가로 구조물 + 위쪽에 공점(Ring) 배치
-                        terrains.push({
-                            type: 'structure',
-                            x: canvas.width,
-                            y: FLOOR_Y - 55,
-                            width: 130,
-                            height: 20
-                        });
-                        interactiveElements.push({
-                            type: 'ring',
-                            x: canvas.width + 65,
-                            y: FLOOR_Y - 105,
-                            radius: 12,
-                            used: false
-                        });
-                    } else if (rand < 0.55) {
-                        // 지상 발판(Pad) + 가시 장애물 구조
-                        interactiveElements.push({
-                            type: 'pad',
-                            x: canvas.width + 10,
-                            y: FLOOR_Y - 6,
-                            width: 28,
-                            height: 6
-                        });
-                        const spikeW = 20;
-                        for (let i = 0; i < 2; i++) {
-                            obstacles.push({
-                                type: 'spike',
-                                x: canvas.width + 70 + (i * spikeW),
-                                y: FLOOR_Y - 22,
-                                width: spikeW,
-                                height: 22
-                            });
-                        }
-                    } else if (rand < 0.8) {
-                        // 1~2개 가시
-                        const count = Math.random() > 0.5 ? 1 : 2;
-                        const spikeW = 20;
-                        for (let i = 0; i < count; i++) {
-                            obstacles.push({
-                                type: 'spike',
-                                x: canvas.width + (i * spikeW),
-                                y: FLOOR_Y - 22,
-                                width: spikeW,
-                                height: 22
-                            });
-                        }
-                    } else {
-                        // 3연속 가시 + 앞쪽 공점(Ring)으로 점프 유도
-                        interactiveElements.push({
-                            type: 'ring',
-                            x: canvas.width - 25,
-                            y: FLOOR_Y - 65,
-                            radius: 12,
-                            used: false
-                        });
-                        const spikeW = 18;
-                        for (let i = 0; i < 3; i++) {
-                            obstacles.push({
-                                type: 'spike',
-                                x: canvas.width + (i * spikeW),
-                                y: FLOOR_Y - 22,
-                                width: spikeW,
-                                height: 22
-                            });
-                        }
-                    }
-                } else if (playerMode === 'wave') {
-                    // WAVE 모드: 공중 톱니바퀴
-                    const minY = CEIL_Y + 40;
-                    const maxY = FLOOR_Y - 40;
-                    const randomY1 = minY + Math.random() * (maxY - minY - 40);
+            isHoldingInput = true;
 
-                    obstacles.push({
-                        type: 'saw',
-                        x: canvas.width,
-                        y: randomY1,
-                        radius: 20
-                    });
-
-                    if (Math.random() > 0.4) {
-                        obstacles.push({
-                            type: 'saw',
-                            x: canvas.width + 120,
-                            y: randomY1 > (CEIL_Y + FLOOR_Y) / 2 ? randomY1 - 50 : randomY1 + 50,
-                            radius: 20
-                        });
-                    }
+            if (gameState === 'PLAYING') {
+                if (player.mode === 'CUBE' && player.isGrounded) {
+                    player.vy = JUMP_FORCE * player.gravityDir;
+                    player.isGrounded = false;
+                    playSound('jump');
+                    createParticles(player.x + PLAYER_SIZE/2, player.y + PLAYER_SIZE, 8, '#00f0ff');
                 }
             }
         }
 
+        function handleInputEnd(e) {
+            if (e.type === 'keyup' && e.code !== 'Space' && e.code !== 'ArrowUp') return;
+            isHoldingInput = false;
+        }
+
+        window.addEventListener('keydown', handleInputStart);
+        window.addEventListener('keyup', handleInputEnd);
+        canvas.addEventListener('mousedown', (e) => { handleInputStart(e); });
+        window.addEventListener('mouseup', handleInputEnd);
+        canvas.addEventListener('touchstart', (e) => { e.preventDefault(); handleInputStart(e); }, { passive: false });
+        window.addEventListener('touchend', handleInputEnd);
+
+        btnPlay.addEventListener('click', () => {
+            initAudio();
+            isPracticeMode = false;
+            practiceControls.style.display = 'none';
+            attempts = 1;
+            attemptText.innerText = `시도: ${attempts}`;
+            startScreen.style.display = 'none';
+            deathScreen.style.display = 'none';
+            resetGame(true);
+            gameState = 'PLAYING';
+        });
+
+        btnPractice.addEventListener('click', () => {
+            initAudio();
+            isPracticeMode = true;
+            practiceControls.style.display = 'flex';
+            checkpoints = [];
+            attempts = 1;
+            attemptText.innerText = `연습 시도: ${attempts}`;
+            startScreen.style.display = 'none';
+            deathScreen.style.display = 'none';
+            resetGame(true);
+            gameState = 'PLAYING';
+        });
+
+        btnRestart.addEventListener('click', () => {
+            initAudio();
+            deathScreen.style.display = 'none';
+            if (!isPracticeMode) {
+                attempts++;
+                attemptText.innerText = `시도: ${attempts}`;
+                resetGame(true);
+            } else {
+                resetGame(checkpoints.length === 0);
+            }
+            gameState = 'PLAYING';
+        });
+
+        btnCheckpoint.addEventListener('click', () => {
+            if (isPracticeMode && gameState === 'PLAYING') {
+                checkpoints.push({
+                    x: player.x,
+                    y: player.y,
+                    mode: player.mode,
+                    gravityDir: player.gravityDir
+                });
+                playSound('portal');
+            }
+        });
+
+        btnRemoveCheckpoint.addEventListener('click', () => {
+            if (checkpoints.length > 0) checkpoints.pop();
+        });
+
+        // --- Particle System ---
+        function createParticles(x, y, count, color) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 8,
+                    vy: (Math.random() - 0.5) * 8,
+                    size: Math.random() * 6 + 3,
+                    color: color,
+                    life: 1.0
+                });
+            }
+        }
+
+        function updateParticles() {
+            for (let i = particles.length - 1; i >= 0; i--) {
+                let p = particles[i];
+                p.x += p.vx;
+                p.y += p.vy;
+                p.life -= 0.04;
+                if (p.life <= 0) {
+                    particles.splice(i, 1);
+                }
+            }
+        }
+
+        function drawParticles() {
+            particles.forEach(p => {
+                ctx.save();
+                ctx.globalAlpha = Math.max(0, p.life);
+                ctx.fillStyle = p.color;
+                ctx.fillRect(p.x - cameraX, p.y, p.size, p.size);
+                ctx.restore();
+            });
+        }
+
+        // --- Crash / Player Death ---
+        function die() {
+            if (gameState !== 'PLAYING') return;
+            playSound('explode');
+            createParticles(player.x + PLAYER_SIZE/2, player.y + PLAYER_SIZE/2, 25, '#ff0055');
+            createParticles(player.x + PLAYER_SIZE/2, player.y + PLAYER_SIZE/2, 15, '#ffe600');
+            gameState = 'DEAD';
+
+            let currentPercent = Math.min(100, Math.floor((player.x / LEVEL_LENGTH) * 100));
+
+            setTimeout(() => {
+                deathMessage.innerText = `진행도: ${currentPercent}%`;
+                deathScreen.style.display = 'flex';
+            }, 400);
+        }
+
+        // --- Physics & Game Loop ---
         function update() {
-            if (!gameStarted || gameOver) return;
+            if (gameState !== 'PLAYING') return;
 
-            if (playerMode === 'cube') {
-                // 일반 바닥 점프
-                if (isHolding && player.isGrounded) {
-                    player.vy = jumpForce;
-                    player.isGrounded = false;
-                }
+            // X movement
+            player.x += player.vx;
 
-                // 공중 점프링(Ring) 터치 상호작용
-                if (justPressed) {
-                    for (let el of interactiveElements) {
-                        if (el.type === 'ring' && !el.used) {
-                            const pCenterX = player.x + player.width / 2;
-                            const pCenterY = player.y + player.height / 2;
-                            const dist = Math.hypot(pCenterX - el.x, pCenterY - el.y);
-                            if (dist < el.radius + 22) {
-                                player.vy = ringJumpForce;
-                                player.isGrounded = false;
-                                el.used = true;
-                                break;
-                            }
-                        }
-                    }
-                }
-
-                player.vy += gravity;
+            // Mode-specific Physics
+            if (player.mode === 'CUBE') {
+                player.vy += GRAVITY * player.gravityDir;
                 player.y += player.vy;
 
+                // Rotation animation when jumping
                 if (!player.isGrounded) {
-                    player.rotation += 0.12;
+                    player.rotation += 8 * player.gravityDir;
                 } else {
-                    player.rotation = Math.round(player.rotation / (Math.PI / 2)) * (Math.PI / 2);
-                }
-            } else if (playerMode === 'wave') {
-                if (isHolding) {
-                    player.y -= waveSpeedY;
-                    player.rotation = -Math.PI / 4;
-                } else {
-                    player.y += waveSpeedY;
-                    player.rotation = Math.PI / 4;
+                    player.rotation = Math.round(player.rotation / 90) * 90;
                 }
 
-                trail.push({ x: player.x + player.width / 2, y: player.y + player.height / 2 });
-                if (trail.length > 25) trail.shift();
-
-                if (player.y <= CEIL_Y || player.y + player.height >= FLOOR_Y) {
-                    triggerGameOver();
-                }
-            }
-
-            frameCount++;
-            spawnElements();
-
-            for (let t of terrains) t.x -= gameSpeed;
-            for (let obs of obstacles) obs.x -= gameSpeed;
-            for (let el of interactiveElements) el.x -= gameSpeed;
-            for (let p of portals) p.x -= gameSpeed;
-            for (let tr of trail) tr.x -= gameSpeed;
-
-            // 포탈 충돌
-            for (let p of portals) {
-                if (
-                    player.x + player.width > p.x &&
-                    player.x < p.x + p.width &&
-                    player.y + player.height > p.y &&
-                    player.y < p.y + p.height
-                ) {
-                    if (playerMode !== p.targetMode) {
-                        playerMode = p.targetMode;
-                        player.vy = 0;
-                        trail = [];
-                    }
-                }
-            }
-
-            // 지형 및 발판(Pad) 상호작용 Check
-            if (playerMode === 'cube') {
-                player.isGrounded = false;
-
-                // 점프 발판(Pad) 접촉 판정
-                for (let el of interactiveElements) {
-                    if (el.type === 'pad') {
-                        if (
-                            player.x + player.width > el.x &&
-                            player.x < el.x + el.width &&
-                            player.y + player.height >= el.y &&
-                            player.y + player.height <= el.y + el.height + 8
-                        ) {
-                            player.vy = padJumpForce;
-                            player.isGrounded = false;
-                        }
-                    }
-                }
-
-                // 가로 구조물 지형
-                for (let t of terrains) {
-                    const pRight = player.x + player.width;
-                    const pLeft = player.x;
-                    const pBottom = player.y + player.height;
-                    const pTop = player.y;
-
-                    if (pRight > t.x && pLeft < t.x + t.width) {
-                        if (player.vy >= 0 && pBottom >= t.y && pBottom - player.vy <= t.y + 12) {
-                            player.y = t.y - player.height;
-                            player.vy = 0;
-                            player.isGrounded = true;
-                        } else if (pBottom > t.y + 8 && pTop < t.y + t.height) {
-                            if (pRight - gameSpeed <= t.x) triggerGameOver();
-                        }
-                    }
-                }
-
-                if (player.y + player.height >= FLOOR_Y) {
-                    player.y = FLOOR_Y - player.height;
+                // Floor collision
+                if (player.y >= FLOOR_Y - PLAYER_SIZE) {
+                    player.y = FLOOR_Y - PLAYER_SIZE;
                     player.vy = 0;
                     player.isGrounded = true;
                 }
-            } else {
-                for (let t of terrains) {
-                    if (
-                        player.x + player.width > t.x &&
-                        player.x < t.x + t.width &&
-                        player.y + player.height > t.y &&
-                        player.y < t.y + t.height
-                    ) {
-                        triggerGameOver();
+
+                // Buffer jump on hold
+                if (isHoldingInput && player.isGrounded) {
+                    player.vy = JUMP_FORCE * player.gravityDir;
+                    player.isGrounded = false;
+                    playSound('jump');
+                }
+
+            } else if (player.mode === 'SHIP') {
+                // Fly up when holding input, fall down when released
+                let shipAccel = isHoldingInput ? -0.85 : 0.7;
+                player.vy += shipAccel;
+                player.vy = Math.max(-9, Math.min(9, player.vy));
+                player.y += player.vy;
+
+                // Rotation proportional to vertical velocity
+                player.rotation = player.vy * 4;
+
+                // Ceiling/Floor Bounds
+                if (player.y <= CEILING_Y) {
+                    player.y = CEILING_Y;
+                    player.vy = 0;
+                }
+                if (player.y >= FLOOR_Y - PLAYER_SIZE) {
+                    player.y = FLOOR_Y - PLAYER_SIZE;
+                    player.vy = 0;
+                }
+
+            } else if (player.mode === 'WAVE') {
+                // Fix: Continuous 45-degree sharp zigzag physics
+                let waveSpeedY = 8.5;
+                if (isHoldingInput) {
+                    player.vy = -waveSpeedY;
+                } else {
+                    player.vy = waveSpeedY;
+                }
+                player.y += player.vy;
+
+                // Angle points sharply in diagonal direction
+                player.rotation = isHoldingInput ? -45 : 45;
+
+                // Fix: Push trail coordinates safely
+                player.waveTrail.push({
+                    x: player.x + PLAYER_SIZE / 2,
+                    y: player.y + PLAYER_SIZE / 2
+                });
+
+                // Limit trail length to prevent memory leaks or rendering freezes
+                if (player.waveTrail.length > 250) {
+                    player.waveTrail.shift();
+                }
+
+                // Wave Mode dies if it hits Floor or Ceiling
+                if (player.y <= CEILING_Y || player.y >= FLOOR_Y - PLAYER_SIZE) {
+                    die();
+                    return;
+                }
+            }
+
+            // Camera follow smoothly
+            cameraX = player.x - 180;
+
+            // --- Collisions with Blocks & Pads ---
+            player.isGrounded = false;
+
+            for (let obj of levelObjects) {
+                // Skip offscreen objects for performance
+                if (obj.x + obj.w < cameraX - 100 || obj.x > cameraX + canvas.width + 100) continue;
+
+                // Player Hitbox (slightly smaller for forgiving gameplay)
+                let pBox = {
+                    x: player.x + 4,
+                    y: player.y + 4,
+                    w: PLAYER_SIZE - 8,
+                    h: PLAYER_SIZE - 8
+                };
+
+                // 1. Spikes Collision
+                if (obj.type === 'spike' || obj.type === 'spike_down') {
+                    // Triangle-like tight hitbox for enlarged spikes
+                    let spikeHitbox = {
+                        x: obj.x + 6,
+                        y: obj.y + 6,
+                        w: obj.w - 12,
+                        h: obj.h - 12
+                    };
+
+                    if (checkAABB(pBox, spikeHitbox)) {
+                        die();
+                        return;
+                    }
+                }
+
+                // 2. Solid Blocks Collision
+                else if (obj.type === 'block') {
+                    if (checkAABB(pBox, obj)) {
+                        // Determine collision side
+                        let prevY = player.y - player.vy;
+
+                        // Landing on top
+                        if (prevY + PLAYER_SIZE <= obj.y + 12 && player.vy >= 0) {
+                            player.y = obj.y - PLAYER_SIZE;
+                            player.vy = 0;
+                            player.isGrounded = true;
+                        } 
+                        // Hitting ceiling/bottom of block
+                        else if (prevY >= obj.y + obj.h - 12 && player.vy <= 0) {
+                            player.y = obj.y + obj.h;
+                            player.vy = 0;
+                        } 
+                        // Hitting the side = Death
+                        else {
+                            die();
+                            return;
+                        }
+                    }
+                }
+
+                // 3. Jump Pads Collision (Improved trigger mechanism)
+                else if (obj.type === 'pad_yellow' || obj.type === 'pad_blue') {
+                    // Generous trigger box for jump pads
+                    let padTrigger = {
+                        x: obj.x - 6,
+                        y: obj.y - 10,
+                        w: obj.w + 12,
+                        h: obj.h + 16
+                    };
+
+                    if (checkAABB(pBox, padTrigger)) {
+                        if (obj.type === 'pad_yellow') {
+                            player.vy = -16.5 * player.gravityDir;
+                            player.isGrounded = false;
+                            playSound('pad');
+                            createParticles(obj.x + obj.w/2, obj.y, 12, '#ffe600');
+                        } else if (obj.type === 'pad_blue') {
+                            player.gravityDir *= -1;
+                            player.vy = -8 * player.gravityDir;
+                            playSound('pad');
+                            createParticles(obj.x + obj.w/2, obj.y, 12, '#00f0ff');
+                        }
+                    }
+                }
+
+                // 4. Mode Switch Portals
+                else if (obj.type.startsWith('portal_')) {
+                    if (checkAABB(pBox, obj)) {
+                        let newMode = obj.type.replace('portal_', '').toUpperCase();
+                        if (player.mode !== newMode) {
+                            player.mode = newMode;
+                            player.waveTrail = [];
+                            playSound('portal');
+                            createParticles(player.x, player.y, 15, '#ff007f');
+
+                            modeBadge.innerText = player.mode;
+                            modeBadge.style.borderColor = player.mode === 'WAVE' ? '#ff007f' : (player.mode === 'SHIP' ? '#ffe600' : '#00f0ff');
+                            modeBadge.style.color = modeBadge.style.borderColor;
+                        }
                     }
                 }
             }
 
-            // 장애물 충돌 (가시 & 톱니바퀴)
-            for (let obs of obstacles) {
-                if (obs.type === 'spike') {
-                    if (
-                        player.x + player.width - 4 > obs.x + 3 &&
-                        player.x + 4 < obs.x + obs.width - 3 &&
-                        player.y + player.height > obs.y + 4
-                    ) {
-                        triggerGameOver();
-                    }
-                } else if (obs.type === 'saw') {
-                    const dist = Math.hypot((player.x + player.width / 2) - obs.x, (player.y + player.height / 2) - obs.y);
-                    if (dist < player.width / 2 + obs.radius - 2) {
-                        triggerGameOver();
-                    }
-                }
+            // Update Particle FX
+            updateParticles();
+
+            // Progress HUD Update
+            let percent = Math.min(100, Math.floor((player.x / LEVEL_LENGTH) * 100));
+            progressBar.style.width = percent + '%';
+            percentText.innerText = percent + '%';
+
+            // Check Level Win
+            if (player.x >= LEVEL_LENGTH) {
+                gameState = 'WIN';
+                deathMessage.innerText = 'LEVEL CLEARED! 100%';
+                deathScreen.style.display = 'flex';
+            }
+        }
+
+        // Helper AABB Box Collision
+        function checkAABB(a, b) {
+            return (
+                a.x < b.x + b.w &&
+                a.x + a.w > b.x &&
+                a.y < b.y + b.h &&
+                a.y + a.h > b.y
+            );
+        }
+
+        // --- Render Functions ---
+        function render() {
+            // Fix: Reset canvas state cleanly to prevent Black Screen glitch
+            ctx.restore();
+            ctx.save();
+
+            // 1. Clear Screen & Dynamic Background
+            let bgHue = (player.x * 0.02) % 360;
+            ctx.fillStyle = `hsl(${bgHue}, 40%, 8%)`;
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Background Grid Lines
+            ctx.strokeStyle = `hsl(${bgHue}, 50%, 15%)`;
+            ctx.lineWidth = 1;
+            let gridOffset = (cameraX * 0.3) % 40;
+            for (let x = -gridOffset; x < canvas.width; x += 40) {
+                ctx.beginPath();
+                ctx.moveTo(x, 0);
+                ctx.lineTo(x, canvas.height);
+                ctx.stroke();
             }
 
-            // 화면 밖 제거
-            if (terrains.length > 0 && terrains[0].x + 300 < 0) terrains.shift();
-            if (obstacles.length > 0 && obstacles[0].x + 100 < 0) obstacles.shift();
-            if (interactiveElements.length > 0 && interactiveElements[0].x + 100 < 0) interactiveElements.shift();
-            if (portals.length > 0 && portals[0].x + 100 < 0) portals.shift();
+            // 2. Draw Floor & Ceiling
+            ctx.fillStyle = '#0f111a';
+            ctx.fillRect(0, FLOOR_Y, canvas.width, canvas.height - FLOOR_Y);
+            ctx.fillRect(0, 0, canvas.width, CEILING_Y);
 
-            if (!gameOver) score += Math.floor(gameSpeed / 3);
-            justPressed = false;
-        }
-
-        function triggerGameOver() {
-            gameOver = true;
-            stopBGM();
-            finalScoreText.innerText = "SCORE: " + score;
-            gameOverOverlay.style.display = "flex";
-        }
-
-        function draw() {
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
-            if (!gameStarted) return;
-
-            // 얇은 바닥 라인
-            ctx.strokeStyle = "#334466";
-            ctx.lineWidth = 2;
+            // Floor Neon Line
+            ctx.strokeStyle = '#00f0ff';
+            ctx.lineWidth = 3;
+            ctx.shadowColor = '#00f0ff';
+            ctx.shadowBlur = 12;
             ctx.beginPath();
             ctx.moveTo(0, FLOOR_Y);
             ctx.lineTo(canvas.width, FLOOR_Y);
+            ctx.moveTo(0, CEILING_Y);
+            ctx.lineTo(canvas.width, CEILING_Y);
             ctx.stroke();
+            ctx.shadowBlur = 0; // Reset shadow
 
-            // Wave 잔상
-            if (playerMode === 'wave' && trail.length > 1) {
-                ctx.strokeStyle = "rgba(255, 0, 85, 0.6)";
-                ctx.lineWidth = 4;
-                ctx.beginPath();
-                ctx.moveTo(trail[0].x, trail[0].y);
-                for (let i = 1; i < trail.length; i++) ctx.lineTo(trail[i].x, tr.y);
-                ctx.stroke();
-            }
+            // 3. Draw Level Objects
+            for (let obj of levelObjects) {
+                if (obj.x + obj.w < cameraX - 100 || obj.x > cameraX + canvas.width + 100) continue;
 
-            // 포탈
-            for (let p of portals) {
-                ctx.fillStyle = p.targetMode === 'wave' ? "#ff00aa" : "#00ffff";
-                ctx.fillRect(p.x, p.y, p.width, p.height);
-                ctx.strokeStyle = "#ffffff";
-                ctx.lineWidth = 3;
-                ctx.strokeRect(p.x, p.y, p.width, p.height);
+                let drawX = obj.x - cameraX;
 
-                ctx.fillStyle = "#ffffff";
-                ctx.font = "bold 11px sans-serif";
-                ctx.textAlign = "center";
-                ctx.fillText(p.targetMode.toUpperCase(), p.x + p.width / 2, p.y + p.height / 2);
-            }
-
-            // 구조물 지형
-            for (let t of terrains) {
-                ctx.fillStyle = "#0088ff";
-                ctx.fillRect(t.x, t.y, t.width, t.height);
-                ctx.strokeStyle = "#ffffff";
-                ctx.lineWidth = 1.5;
-                ctx.strokeRect(t.x, t.y, t.width, t.height);
-            }
-
-            // 공점(Ring) 및 점프 발판(Pad)
-            for (let el of interactiveElements) {
-                if (el.type === 'ring') {
-                    ctx.strokeStyle = el.used ? "#888888" : "#ffe600";
+                // Spike Rendering (Enlarged and Glowing)
+                if (obj.type === 'spike') {
+                    ctx.fillStyle = '#222';
+                    ctx.strokeStyle = '#ff0055';
                     ctx.lineWidth = 3;
-                    ctx.beginPath();
-                    ctx.arc(el.x, el.y, el.radius, 0, Math.PI * 2);
-                    ctx.stroke();
 
-                    // 내부에 미세한 점 표시
-                    ctx.fillStyle = el.used ? "#555555" : "#ffffff";
                     ctx.beginPath();
-                    ctx.arc(el.x, el.y, 4, 0, Math.PI * 2);
-                    ctx.fill();
-                } else if (el.type === 'pad') {
-                    ctx.fillStyle = "#ffe600";
-                    ctx.fillRect(el.x, el.y, el.width, el.height);
-                    ctx.strokeStyle = "#ffffff";
-                    ctx.lineWidth = 1;
-                    ctx.strokeRect(el.x, el.y, el.width, el.height);
-                }
-            }
-
-            // 장애물 (가시 & 톱니바퀴)
-            for (let obs of obstacles) {
-                if (obs.type === 'spike') {
-                    ctx.fillStyle = "#ff3300";
-                    ctx.beginPath();
-                    ctx.moveTo(obs.x, obs.y + obs.height);
-                    ctx.lineTo(obs.x + obs.width / 2, obs.y);
-                    ctx.lineTo(obs.x + obs.width, obs.y + obs.height);
+                    ctx.moveTo(drawX, obj.y + obj.h);
+                    ctx.lineTo(drawX + obj.w / 2, obj.y);
+                    ctx.lineTo(drawX + obj.w, obj.y + obj.h);
                     ctx.closePath();
                     ctx.fill();
-                    ctx.strokeStyle = "#ffffff";
-                    ctx.lineWidth = 1;
                     ctx.stroke();
-                } else if (obs.type === 'saw') {
-                    ctx.fillStyle = "#ff3300";
+
+                    // Inner detail
+                    ctx.fillStyle = '#ff0055';
                     ctx.beginPath();
-                    ctx.arc(obs.x, obs.y, obs.radius, 0, Math.PI * 2);
+                    ctx.moveTo(drawX + obj.w * 0.3, obj.y + obj.h - 4);
+                    ctx.lineTo(drawX + obj.w / 2, obj.y + obj.h * 0.4);
+                    ctx.lineTo(drawX + obj.w * 0.7, obj.y + obj.h - 4);
+                    ctx.closePath();
                     ctx.fill();
-                    ctx.strokeStyle = "#ffffff";
-                    ctx.lineWidth = 2;
+
+                } else if (obj.type === 'spike_down') {
+                    ctx.fillStyle = '#222';
+                    ctx.strokeStyle = '#ff0055';
+                    ctx.lineWidth = 3;
+
+                    ctx.beginPath();
+                    ctx.moveTo(drawX, obj.y);
+                    ctx.lineTo(drawX + obj.w / 2, obj.y + obj.h);
+                    ctx.lineTo(drawX + obj.w, obj.y);
+                    ctx.closePath();
+                    ctx.fill();
                     ctx.stroke();
+
+                } else if (obj.type === 'block') {
+                    ctx.fillStyle = '#151828';
+                    ctx.strokeStyle = '#00f0ff';
+                    ctx.lineWidth = 2;
+                    ctx.fillRect(drawX, obj.y, obj.w, obj.h);
+                    ctx.strokeRect(drawX, obj.y, obj.w, obj.h);
+
+                    // Block Grid pattern
+                    ctx.strokeStyle = 'rgba(0, 240, 255, 0.2)';
+                    ctx.strokeRect(drawX + 4, obj.y + 4, obj.w - 8, obj.h - 8);
+
+                } else if (obj.type === 'pad_yellow') {
+                    ctx.fillStyle = '#ffe600';
+                    ctx.shadowColor = '#ffe600';
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.ellipse(drawX + obj.w/2, obj.y + obj.h/2, obj.w/2, obj.h/2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+
+                } else if (obj.type === 'pad_blue') {
+                    ctx.fillStyle = '#00f0ff';
+                    ctx.shadowColor = '#00f0ff';
+                    ctx.shadowBlur = 10;
+                    ctx.beginPath();
+                    ctx.ellipse(drawX + obj.w/2, obj.y + obj.h/2, obj.w/2, obj.h/2, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.shadowBlur = 0;
+
+                } else if (obj.type.startsWith('portal_')) {
+                    let color = obj.type.includes('wave') ? '#ff007f' : (obj.type.includes('ship') ? '#ffe600' : '#00f0ff');
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 4;
+                    ctx.shadowColor = color;
+                    ctx.shadowBlur = 15;
+                    ctx.strokeRect(drawX, obj.y, obj.w, obj.h);
+                    ctx.shadowBlur = 0;
                 }
             }
 
-            // 플레이어
-            ctx.save();
-            ctx.translate(player.x + player.width / 2, player.y + player.height / 2);
-            ctx.rotate(player.rotation);
+            // 4. Draw Practice Checkpoints
+            if (isPracticeMode) {
+                checkpoints.forEach(cp => {
+                    if (cp.x - cameraX > -50 && cp.x - cameraX < canvas.width + 50) {
+                        ctx.fillStyle = '#00ff66';
+                        ctx.beginPath();
+                        ctx.arc(cp.x - cameraX, cp.y + 18, 10, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+                });
+            }
 
-            if (playerMode === 'cube') {
-                ctx.fillStyle = "#00ffcc";
-                ctx.fillRect(-player.width / 2, -player.height / 2, player.width, player.height);
-                ctx.strokeStyle = "#ffffff";
-                ctx.lineWidth = 2;
-                ctx.strokeRect(-player.width / 2, -player.height / 2, player.width, player.height);
-            } else if (playerMode === 'wave') {
-                ctx.fillStyle = "#ff0055";
+            // 5. Wave Mode Trail (Fix: Safe Canvas Path Drawing)
+            if (player.mode === 'WAVE' && player.waveTrail.length > 1) {
+                ctx.save();
+                ctx.strokeStyle = '#ff007f';
+                ctx.lineWidth = 5;
+                ctx.shadowColor = '#ff007f';
+                ctx.shadowBlur = 12;
                 ctx.beginPath();
-                ctx.moveTo(14, 0);
-                ctx.lineTo(-10, -10);
-                ctx.lineTo(-4, 0);
-                ctx.lineTo(-10, 10);
-                ctx.closePath();
-                ctx.fill();
-                ctx.strokeStyle = "#ffffff";
-                ctx.lineWidth = 1.5;
+
+                for (let i = 0; i < player.waveTrail.length; i++) {
+                    let pt = player.waveTrail[i];
+                    let tx = pt.x - cameraX;
+                    let ty = pt.y;
+
+                    if (i === 0) {
+                        ctx.moveTo(tx, ty);
+                    } else {
+                        ctx.lineTo(tx, ty);
+                    }
+                }
                 ctx.stroke();
+                ctx.restore();
             }
+
+            // 6. Draw Player
+            if (gameState === 'PLAYING') {
+                ctx.save();
+                let screenPlayerX = player.x - cameraX + PLAYER_SIZE / 2;
+                let screenPlayerY = player.y + PLAYER_SIZE / 2;
+
+                ctx.translate(screenPlayerX, screenPlayerY);
+                ctx.rotate((player.rotation * Math.PI) / 180);
+
+                if (player.mode === 'CUBE') {
+                    // Cube Body
+                    ctx.fillStyle = '#ffe600';
+                    ctx.strokeStyle = '#000';
+                    ctx.lineWidth = 3;
+                    ctx.fillRect(-PLAYER_SIZE / 2, -PLAYER_SIZE / 2, PLAYER_SIZE, PLAYER_SIZE);
+                    ctx.strokeRect(-PLAYER_SIZE / 2, -PLAYER_SIZE / 2, PLAYER_SIZE, PLAYER_SIZE);
+
+                    // Inner Face Squares
+                    ctx.fillStyle = '#00f0ff';
+                    ctx.fillRect(-8, -8, 16, 16);
+
+                } else if (player.mode === 'SHIP') {
+                    // Ship Shape
+                    ctx.fillStyle = '#ffe600';
+                    ctx.beginPath();
+                    ctx.moveTo(-PLAYER_SIZE / 2, PLAYER_SIZE / 4);
+                    ctx.lineTo(PLAYER_SIZE / 2, 0);
+                    ctx.lineTo(-PLAYER_SIZE / 2, -PLAYER_SIZE / 4);
+                    ctx.closePath();
+                    ctx.fill();
+
+                    // Bubble Dome
+                    ctx.fillStyle = '#00f0ff';
+                    ctx.beginPath();
+                    ctx.arc(-2, -2, 8, 0, Math.PI * 2);
+                    ctx.fill();
+
+                } else if (player.mode === 'WAVE') {
+                    // Arrow / Wave Shape
+                    ctx.fillStyle = '#ff007f';
+                    ctx.strokeStyle = '#ffffff';
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.moveTo(PLAYER_SIZE / 2, 0);
+                    ctx.lineTo(-PLAYER_SIZE / 2, -PLAYER_SIZE / 2.2);
+                    ctx.lineTo(-PLAYER_SIZE / 4, 0);
+                    ctx.lineTo(-PLAYER_SIZE / 2, PLAYER_SIZE / 2.2);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
+                }
+
+                ctx.restore();
+            }
+
+            // 7. Draw Particles
+            drawParticles();
+
             ctx.restore();
-
-            // 점수 및 현재 모드 UI
-            ctx.fillStyle = "#ffffff";
-            ctx.font = "16px sans-serif";
-            ctx.textAlign = "left";
-            ctx.fillText("SCORE: " + score, 15, 25);
-            ctx.fillStyle = playerMode === 'wave' ? "#ff0055" : "#00ffcc";
-            ctx.fillText("MODE: " + playerMode.toUpperCase(), 150, 25);
         }
 
-        function loop() {
+        // Main Loop
+        function gameLoop() {
             update();
-            draw();
-            if (gameStarted && !gameOver) {
-                animationFrameId = requestAnimationFrame(loop);
-            }
+            render();
+            requestAnimationFrame(gameLoop);
         }
 
-        function startGame() {
-            initAudio();
-            if (audioCtx.state === "suspended") audioCtx.resume();
-            gameStarted = true;
-            init();
-            startBGM();
-            loop();
-        }
-
-        function restartGame() {
-            cancelAnimationFrame(animationFrameId);
-            initAudio();
-            if (audioCtx.state === "suspended") audioCtx.resume();
-            init();
-            startBGM();
-            loop();
-        }
+        // Start initialization
+        generateLevel();
+        gameLoop();
     </script>
 </body>
 </html>
-"""
-
-components.html(game_code, height=380)
