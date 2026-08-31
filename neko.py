@@ -4,7 +4,6 @@ import streamlit.components.v1 as components
 st.set_page_config(page_title="미니 냥코대전쟁", layout="centered")
 st.title("🐱 미니 냥코대전쟁")
 
-# HTML/JS 기반 게임 코드 (캐릭터 소환 및 이동 추가)
 game_code = """
 <!DOCTYPE html>
 <html>
@@ -23,31 +22,42 @@ game_code = """
             border: 2px solid #333;
             background-color: #e0f7fa;
         }
+        .money-display {
+            font-size: 18px;
+            font-weight: bold;
+            margin: 10px 0 5px 0;
+            color: #2e7d32;
+        }
         .controls {
-            margin-top: 10px;
             display: flex;
-            gap: 10px;
+            gap: 12px;
         }
         button {
-            padding: 8px 16px;
-            font-size: 14px;
+            padding: 10px 16px;
+            font-size: 13px;
             font-weight: bold;
             cursor: pointer;
             border: 2px solid #333;
             border-radius: 6px;
             background-color: #ffffff;
+            transition: background-color 0.1s;
         }
-        button:hover {
-            background-color: #e0e0e0;
+        button:disabled {
+            background-color: #ccc;
+            cursor: not-allowed;
+            color: #666;
+            border-color: #999;
         }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas" width="800" height="300"></canvas>
     
+    <div class="money-display">💰 소지금: <span id="moneyTxt">0</span>원 / 1000원</div>
+
     <div class="controls">
-        <button onclick="spawnUnit('basic')">🐱 기본 고양이</button>
-        <button onclick="spawnUnit('tank')">🦒 탱커 고양이</button>
+        <button id="btnBasic" onclick="spawnUnit('basic')">🐱 기본 (50원)</button>
+        <button id="btnTank" onclick="spawnUnit('tank')">🦒 탱커 (75원)</button>
     </div>
 
     <script>
@@ -56,6 +66,21 @@ game_code = """
 
         const groundY = 220;
 
+        // 재화(돈) 및 쿨타임 시스템 데이터
+        let money = 0;
+        const maxMoney = 1000;
+        const moneyIncomeRate = 0.5; // 프레임당 증가하는 돈
+
+        const unitConfigs = {
+            basic: { cost: 50, cooldown: 500, hp: 30, atk: 10, speed: 1.2, width: 25, height: 25, color: '#ffffff' },
+            tank:  { cost: 75, cooldown: 1000, hp: 60, atk: 7,  speed: 0.6, width: 20, height: 50, color: '#ffffff' }
+        };
+
+        const cooldownState = {
+            basic: { ready: true, timer: null },
+            tank:  { ready: true, timer: null }
+        };
+
         // 성 설정
         const playerCastle = { x: 50, y: groundY - 80, width: 60, height: 80, hp: 1000 };
         const enemyCastle = { x: 690, y: groundY - 80, width: 60, height: 80, hp: 1000 };
@@ -63,41 +88,63 @@ game_code = """
         // 유닛 목록
         const units = [];
 
-        // 유닛 소환 함수
+        // 유닛 소환 처리
         function spawnUnit(type) {
-            if (type === 'basic') {
-                units.push({
-                    x: playerCastle.x + playerCastle.width,
-                    y: groundY - 25,
-                    width: 25,
-                    height: 25,
-                    speed: 1.2,
-                    color: '#ffffff',
-                    stroke: '#000000',
-                    name: '기본'
-                });
-            } else if (type === 'tank') {
-                units.push({
-                    x: playerCastle.x + playerCastle.width,
-                    y: groundY - 50,
-                    width: 20,
-                    height: 50,
-                    speed: 0.6,
-                    color: '#ffffff',
-                    stroke: '#000000',
-                    name: '탱커'
-                });
-            }
+            const config = unitConfigs[type];
+
+            // 돈 부전 또는 쿨타임 중이면 소환 불가
+            if (money < config.cost || !cooldownState[type].ready) return;
+
+            // 돈 차감
+            money -= config.cost;
+
+            // 쿨타임 적용
+            cooldownState[type].ready = false;
+            setTimeout(() => {
+                cooldownState[type].ready = true;
+            }, config.cooldown);
+
+            // 유닛 생성
+            units.push({
+                x: playerCastle.x + playerCastle.width,
+                y: groundY - config.height,
+                width: config.width,
+                height: config.height,
+                speed: config.speed,
+                hp: config.hp,
+                maxHp: config.hp,
+                atk: config.atk,
+                color: config.color,
+                type: type
+            });
+        }
+
+        function updateUI() {
+            // 돈 텍스트 업데이트
+            document.getElementById("moneyTxt").innerText = Math.floor(money);
+
+            // 버튼 상태 업데이트 (비용 + 쿨타임 체크)
+            const btnBasic = document.getElementById("btnBasic");
+            const btnTank = document.getElementById("btnTank");
+
+            btnBasic.disabled = (money < unitConfigs.basic.cost) || !cooldownState.basic.ready;
+            btnTank.disabled = (money < unitConfigs.tank.cost) || !cooldownState.tank.ready;
         }
 
         function update() {
-            // 유닛 이동 로직
+            // 돈 수급
+            if (money < maxMoney) {
+                money = Math.min(maxMoney, money + moneyIncomeRate);
+            }
+
+            // 유닛 이동
             units.forEach(unit => {
-                // 적 성에 도달하기 전까지 이동
                 if (unit.x + unit.width < enemyCastle.x) {
                     unit.x += unit.speed;
                 }
             });
+
+            updateUI();
         }
 
         function render() {
@@ -145,32 +192,30 @@ game_code = """
 
             // 4. 유닛 그리기
             units.forEach(unit => {
-                // 몸통 (흰색 상자)
                 ctx.fillStyle = unit.color;
                 ctx.fillRect(unit.x, unit.y, unit.width, unit.height);
-                ctx.strokeStyle = unit.stroke;
+                ctx.strokeStyle = '#000000';
                 ctx.lineWidth = 2;
                 ctx.strokeRect(unit.x, unit.y, unit.width, unit.height);
 
-                // 단순한 귀 연출 (삼각형 2개)
+                // 고양이 귀 표현
                 ctx.fillStyle = "#ffffff";
                 ctx.beginPath();
                 ctx.moveTo(unit.x, unit.y);
-                ctx.lineTo(unit.x + 5, unit.y - 6);
-                ctx.lineTo(unit.x + 10, unit.y);
+                ctx.lineTo(unit.x + 4, unit.y - 6);
+                ctx.lineTo(unit.x + 8, unit.y);
                 ctx.fill();
                 ctx.stroke();
 
                 ctx.beginPath();
-                ctx.moveTo(unit.x + unit.width - 10, unit.y);
-                ctx.lineTo(unit.x + unit.width - 5, unit.y - 6);
+                ctx.moveTo(unit.x + unit.width - 8, unit.y);
+                ctx.lineTo(unit.x + unit.width - 4, unit.y - 6);
                 ctx.lineTo(unit.x + unit.width, unit.y);
                 ctx.fill();
                 ctx.stroke();
             });
         }
 
-        // 게임 루프 실행 (초당 60프레임)
         function gameLoop() {
             update();
             render();
@@ -183,4 +228,4 @@ game_code = """
 </html>
 """
 
-components.html(game_code, height=380)
+components.html(game_code, height=420)
