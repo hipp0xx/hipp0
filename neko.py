@@ -141,10 +141,14 @@ game_code = """
             <div id="cdTank" class="cooldown-overlay" style="height: 0%;"></div>
         </div>
 
-        <div class="unit-slot empty">
-            <div>EMPTY</div>
+        <!-- Slot 3: Stage 2 해금 도끼맨 -->
+        <div id="slotAxe" class="unit-slot disabled" onclick="spawnPlayerUnit('axe')">
+            <div>🪓 도끼맨</div>
+            <div class="cost-tag">100원</div>
+            <div id="cdAxe" class="cooldown-overlay" style="height: 0%;"></div>
         </div>
 
+        <!-- Slot 4: 빈 슬롯 -->
         <div class="unit-slot empty">
             <div>EMPTY</div>
         </div>
@@ -166,19 +170,21 @@ game_code = """
         const moneyIncomeRate = 0.5;
 
         const playerUnitConfigs = {
-            basic: { cost: 50, cooldown: 500, hp: 30, atk: 10, speed: 1.2, width: 25, height: 25, color: '#ffffff', atkCooldown: 60 },
-            tank:  { cost: 75, cooldown: 1000, hp: 60, atk: 7,  speed: 0.6, width: 20, height: 50, color: '#ffffff', atkCooldown: 80 }
+            basic: { cost: 50,  cooldown: 500,  hp: 30, atk: 10, speed: 1.2, width: 25, height: 25, range: 5,  color: '#ffffff', atkCooldown: 60 },
+            tank:  { cost: 75,  cooldown: 1000, hp: 60, atk: 7,  speed: 0.6, width: 20, height: 50, range: 5,  color: '#ffffff', atkCooldown: 80 },
+            axe:   { cost: 100, cooldown: 700,  hp: 20, atk: 25, speed: 1.0, width: 25, height: 30, range: 80, color: '#ff7043', atkCooldown: 70 } // 도끼맨 (원거리 80px)
         };
 
         const enemyUnitConfigs = {
             doge:  { hp: 20,  atk: 8,  speed: 0.9, width: 25, height: 25, color: '#ffcc80', atkCooldown: 60 },
             snake: { hp: 17,  atk: 11, speed: 1.4, width: 35, height: 15, color: '#a5d6a7', atkCooldown: 50 },
-            hippo: { hp: 300, atk: 20, speed: 0.5, width: 50, height: 40, color: '#f8bbd0', atkCooldown: 45 } // 하마양 (HP 300 / ATK 20 / 공격속도 2배)
+            hippo: { hp: 300, atk: 20, speed: 0.5, width: 50, height: 40, color: '#f8bbd0', atkCooldown: 45 }
         };
 
         const cooldownState = {
             basic: { ready: true, remaining: 0, total: 500 },
-            tank:  { ready: true, remaining: 0, total: 1000 }
+            tank:  { ready: true, remaining: 0, total: 1000 },
+            axe:   { ready: true, remaining: 0, total: 700 }
         };
 
         let playerCastle = { x: 50, y: groundY - 80, width: 60, height: 80, hp: 200, maxHp: 200 };
@@ -242,6 +248,10 @@ game_code = """
 
         function spawnPlayerUnit(type) {
             if (!gameStarted || gameOver) return;
+            
+            // Stage 1에서는 도끼맨 사용 불가
+            if (type === 'axe' && currentStage < 2) return;
+
             const config = playerUnitConfigs[type];
 
             if (money < config.cost || !cooldownState[type].ready) return;
@@ -250,6 +260,7 @@ game_code = """
             triggerCooldown(type);
 
             playerUnits.push({
+                type: type,
                 x: playerCastle.x + playerCastle.width,
                 y: groundY - config.height,
                 width: config.width,
@@ -258,6 +269,7 @@ game_code = """
                 hp: config.hp,
                 maxHp: config.hp,
                 atk: config.atk,
+                range: config.range,
                 color: config.color,
                 atkTimer: 0,
                 atkCooldown: config.atkCooldown
@@ -328,26 +340,34 @@ game_code = """
         function updateUI() {
             document.getElementById("moneyTxt").innerText = Math.floor(money);
 
+            // 1) 기본 고양이
             const slotBasic = document.getElementById("slotBasic");
             const cdBasic = document.getElementById("cdBasic");
-            const basicRatio = cooldownState.basic.remaining / cooldownState.basic.total;
-            cdBasic.style.height = (basicRatio * 100) + "%";
-
+            cdBasic.style.height = ((cooldownState.basic.remaining / cooldownState.basic.total) * 100) + "%";
             if (gameStarted && !gameOver && money >= playerUnitConfigs.basic.cost && cooldownState.basic.ready) {
                 slotBasic.classList.remove("disabled");
             } else {
                 slotBasic.classList.add("disabled");
             }
 
+            // 2) 탱커 고양이
             const slotTank = document.getElementById("slotTank");
             const cdTank = document.getElementById("cdTank");
-            const tankRatio = cooldownState.tank.remaining / cooldownState.tank.total;
-            cdTank.style.height = (tankRatio * 100) + "%";
-
+            cdTank.style.height = ((cooldownState.tank.remaining / cooldownState.tank.total) * 100) + "%";
             if (gameStarted && !gameOver && money >= playerUnitConfigs.tank.cost && cooldownState.tank.ready) {
                 slotTank.classList.remove("disabled");
             } else {
                 slotTank.classList.add("disabled");
+            }
+
+            // 3) 도끼맨 (Stage 2 전용)
+            const slotAxe = document.getElementById("slotAxe");
+            const cdAxe = document.getElementById("cdAxe");
+            cdAxe.style.height = ((cooldownState.axe.remaining / cooldownState.axe.total) * 100) + "%";
+            if (gameStarted && !gameOver && currentStage >= 2 && money >= playerUnitConfigs.axe.cost && cooldownState.axe.ready) {
+                slotAxe.classList.remove("disabled");
+            } else {
+                slotAxe.classList.add("disabled");
             }
         }
 
@@ -373,7 +393,7 @@ game_code = """
             playerUnits.forEach((pUnit) => {
                 let targetEnemy = null;
                 for (let eUnit of enemyUnits) {
-                    if (eUnit.x > pUnit.x && eUnit.x <= pUnit.x + pUnit.width + 5) {
+                    if (eUnit.x > pUnit.x && eUnit.x <= pUnit.x + pUnit.width + pUnit.range) {
                         targetEnemy = eUnit;
                         break;
                     }
@@ -385,7 +405,7 @@ game_code = """
                         pUnit.atkTimer = 0;
                         targetEnemy.hp -= pUnit.atk;
                     }
-                } else if (pUnit.x + pUnit.width >= enemyCastle.x) {
+                } else if (pUnit.x + pUnit.width + pUnit.range >= enemyCastle.x) {
                     pUnit.atkTimer++;
                     if (pUnit.atkTimer >= pUnit.atkCooldown) {
                         pUnit.atkTimer = 0;
@@ -502,6 +522,7 @@ game_code = """
                 ctx.lineWidth = 2;
                 ctx.strokeRect(unit.x, unit.y, unit.width, unit.height);
 
+                // 고양이 귀 연출
                 ctx.fillStyle = "#ffffff";
                 ctx.beginPath();
                 ctx.moveTo(unit.x, unit.y);
@@ -516,6 +537,16 @@ game_code = """
                 ctx.lineTo(unit.x + unit.width, unit.y);
                 ctx.fill();
                 ctx.stroke();
+
+                // 도끼맨 원거리 공격 투척 모션
+                if (unit.type === 'axe' && unit.atkTimer > unit.atkCooldown - 15) {
+                    ctx.strokeStyle = "#d84315";
+                    ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(unit.x + unit.width, unit.y + 10);
+                    ctx.lineTo(unit.x + unit.width + unit.range, unit.y + 10);
+                    ctx.stroke();
+                }
 
                 ctx.fillStyle = "#ff5252";
                 ctx.fillRect(unit.x, unit.y - 8, unit.width, 4);
