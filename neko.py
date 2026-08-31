@@ -114,17 +114,49 @@ game_code = """
             color: #d32f2f;
             margin-top: 2px;
         }
+
+        /* 획득 팝업 스타일 */
+        .reward-modal {
+            display: none;
+            position: absolute;
+            top: 70px;
+            width: 380px;
+            background: #ffffff;
+            border: 3px solid #ff9800;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            text-align: center;
+            padding: 20px;
+            z-index: 10;
+        }
+        .reward-modal h2 {
+            margin: 0 0 10px 0;
+            color: #e65100;
+            font-size: 20px;
+        }
+        .reward-modal p {
+            font-size: 14px;
+            color: #333;
+            margin-bottom: 15px;
+        }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas" width="800" height="300"></canvas>
     
+    <!-- 획득 팝업 창 -->
+    <div id="rewardModal" class="reward-modal">
+        <h2>🎉 캐릭터 해금!</h2>
+        <p><b>[🪓 도끼맨]</b>을(를) 획득했습니다!<br>사거리가 긴 신규 원거리 딜러 캐릭터입니다.</p>
+        <button class="action-btn next-btn" onclick="closeModalAndStartStage2()">➡️ Stage 2 시작하기</button>
+    </div>
+
     <div class="top-bar">
         <div class="stage-title" id="stageTxt">🚩 Stage 1</div>
         <div class="money-display">💰 소지금: <span id="moneyTxt">0</span>원 / 1000원</div>
         <div class="btn-group">
             <button id="btnStart" class="action-btn" onclick="startGame()">⚔️ 게임 시작</button>
-            <button id="btnNext" class="action-btn next-btn" style="display: none;" onclick="goToNextStage()">➡️ 다음 스테이지</button>
+            <button id="btnNext" class="action-btn next-btn" style="display: none;" onclick="showRewardModal()">➡️ 다음 스테이지</button>
         </div>
     </div>
 
@@ -141,15 +173,15 @@ game_code = """
             <div id="cdTank" class="cooldown-overlay" style="height: 0%;"></div>
         </div>
 
-        <!-- Slot 3: Stage 2 해금 도끼맨 -->
-        <div id="slotAxe" class="unit-slot disabled" onclick="spawnPlayerUnit('axe')">
+        <!-- Slot 3: Stage 1에선 안 보임 (display: none) -->
+        <div id="slotAxe" class="unit-slot disabled" style="display: none;" onclick="spawnPlayerUnit('axe')">
             <div>🪓 도끼맨</div>
             <div class="cost-tag">100원</div>
             <div id="cdAxe" class="cooldown-overlay" style="height: 0%;"></div>
         </div>
 
         <!-- Slot 4: 빈 슬롯 -->
-        <div class="unit-slot empty">
+        <div id="slotEmpty4" class="unit-slot empty">
             <div>EMPTY</div>
         </div>
     </div>
@@ -170,9 +202,9 @@ game_code = """
         const moneyIncomeRate = 0.5;
 
         const playerUnitConfigs = {
-            basic: { cost: 50,  cooldown: 500,  hp: 30, atk: 10, speed: 1.2, width: 25, height: 25, range: 5,  color: '#ffffff', atkCooldown: 60 },
-            tank:  { cost: 75,  cooldown: 1000, hp: 60, atk: 7,  speed: 0.6, width: 20, height: 50, range: 5,  color: '#ffffff', atkCooldown: 80 },
-            axe:   { cost: 100, cooldown: 700,  hp: 20, atk: 25, speed: 1.0, width: 25, height: 30, range: 80, color: '#ff7043', atkCooldown: 70 } // 도끼맨 (원거리 80px)
+            basic: { cost: 50,  cooldown: 500,  hp: 30, atk: 10, speed: 1.2, width: 25, height: 25, range: 5,   color: '#ffffff', atkCooldown: 60 },
+            tank:  { cost: 75,  cooldown: 1000, hp: 60, atk: 7,  speed: 0.6, width: 20, height: 50, range: 5,   color: '#ffffff', atkCooldown: 80 },
+            axe:   { cost: 100, cooldown: 2000, hp: 20, atk: 25, speed: 1.0, width: 25, height: 30, range: 125, color: '#ff7043', atkCooldown: 70 } // 쿨타임 2000ms / 사거리 125px (5배)
         };
 
         const enemyUnitConfigs = {
@@ -184,7 +216,7 @@ game_code = """
         const cooldownState = {
             basic: { ready: true, remaining: 0, total: 500 },
             tank:  { ready: true, remaining: 0, total: 1000 },
-            axe:   { ready: true, remaining: 0, total: 700 }
+            axe:   { ready: true, remaining: 0, total: 2000 }
         };
 
         let playerCastle = { x: 50, y: groundY - 80, width: 60, height: 80, hp: 200, maxHp: 200 };
@@ -215,6 +247,13 @@ game_code = """
             document.getElementById("btnStart").disabled = false;
             document.getElementById("btnStart").innerText = "⚔️ 게임 시작";
             document.getElementById("btnNext").style.display = "none";
+
+            // Stage 2일 때 도끼맨 슬롯 등장
+            if (currentStage >= 2) {
+                document.getElementById("slotAxe").style.display = "flex";
+            } else {
+                document.getElementById("slotAxe").style.display = "none";
+            }
         }
 
         function startGame() {
@@ -225,7 +264,12 @@ game_code = """
             lastEnemySpawnTime = Date.now();
         }
 
-        function goToNextStage() {
+        function showRewardModal() {
+            document.getElementById("rewardModal").style.display = "block";
+        }
+
+        function closeModalAndStartStage2() {
+            document.getElementById("rewardModal").style.display = "none";
             initStage(2);
         }
 
@@ -249,7 +293,6 @@ game_code = """
         function spawnPlayerUnit(type) {
             if (!gameStarted || gameOver) return;
             
-            // Stage 1에서는 도끼맨 사용 불가
             if (type === 'axe' && currentStage < 2) return;
 
             const config = playerUnitConfigs[type];
@@ -340,7 +383,6 @@ game_code = """
         function updateUI() {
             document.getElementById("moneyTxt").innerText = Math.floor(money);
 
-            // 1) 기본 고양이
             const slotBasic = document.getElementById("slotBasic");
             const cdBasic = document.getElementById("cdBasic");
             cdBasic.style.height = ((cooldownState.basic.remaining / cooldownState.basic.total) * 100) + "%";
@@ -350,7 +392,6 @@ game_code = """
                 slotBasic.classList.add("disabled");
             }
 
-            // 2) 탱커 고양이
             const slotTank = document.getElementById("slotTank");
             const cdTank = document.getElementById("cdTank");
             cdTank.style.height = ((cooldownState.tank.remaining / cooldownState.tank.total) * 100) + "%";
@@ -360,7 +401,6 @@ game_code = """
                 slotTank.classList.add("disabled");
             }
 
-            // 3) 도끼맨 (Stage 2 전용)
             const slotAxe = document.getElementById("slotAxe");
             const cdAxe = document.getElementById("cdAxe");
             cdAxe.style.height = ((cooldownState.axe.remaining / cooldownState.axe.total) * 100) + "%";
@@ -522,7 +562,6 @@ game_code = """
                 ctx.lineWidth = 2;
                 ctx.strokeRect(unit.x, unit.y, unit.width, unit.height);
 
-                // 고양이 귀 연출
                 ctx.fillStyle = "#ffffff";
                 ctx.beginPath();
                 ctx.moveTo(unit.x, unit.y);
@@ -538,7 +577,7 @@ game_code = """
                 ctx.fill();
                 ctx.stroke();
 
-                // 도끼맨 원거리 공격 투척 모션
+                // 도끼맨 투척 이펙트
                 if (unit.type === 'axe' && unit.atkTimer > unit.atkCooldown - 15) {
                     ctx.strokeStyle = "#d84315";
                     ctx.lineWidth = 3;
@@ -627,4 +666,4 @@ game_code = """
 </html>
 """
 
-components.html(game_code, height=480)
+components.html(game_code, height=520)
