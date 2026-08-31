@@ -2,7 +2,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title="미니 냥코대전쟁", layout="centered")
-st.title("🐱 미니 냥코대전쟁")
+st.title("🐱 미니 냥코대전쟁 - Stage 2")
 
 game_code = """
 <!DOCTYPE html>
@@ -51,7 +51,6 @@ game_code = """
             cursor: not-allowed;
         }
 
-        /* 4칸 정사각형 슬롯 레이아웃 */
         .controls {
             display: flex;
             gap: 12px;
@@ -87,7 +86,6 @@ game_code = """
             color: #b0bec5;
         }
         
-        /* 쿨타임 오버레이 연출 */
         .cooldown-overlay {
             position: absolute;
             top: 0;
@@ -110,30 +108,26 @@ game_code = """
     
     <div class="top-bar">
         <div class="money-display">💰 소지금: <span id="moneyTxt">0</span>원 / 1000원</div>
-        <button id="btnStart" class="start-btn" onclick="startGame()">⚔️ 게임 시작</button>
+        <button id="btnStart" class="start-btn" onclick="startGame()">⚔️ Stage 2 시작</button>
     </div>
 
     <div class="controls">
-        <!-- Slot 1: 기본 고양이 -->
         <div id="slotBasic" class="unit-slot disabled" onclick="spawnPlayerUnit('basic')">
             <div>🐱 기본</div>
             <div class="cost-tag">50원</div>
             <div id="cdBasic" class="cooldown-overlay" style="height: 0%;"></div>
         </div>
 
-        <!-- Slot 2: 탱커 고양이 -->
         <div id="slotTank" class="unit-slot disabled" onclick="spawnPlayerUnit('tank')">
             <div>🦒 탱커</div>
             <div class="cost-tag">75원</div>
             <div id="cdTank" class="cooldown-overlay" style="height: 0%;"></div>
         </div>
 
-        <!-- Slot 3: 빈 슬롯 -->
         <div class="unit-slot empty">
             <div>EMPTY</div>
         </div>
 
-        <!-- Slot 4: 빈 슬롯 -->
         <div class="unit-slot empty">
             <div>EMPTY</div>
         </div>
@@ -158,11 +152,11 @@ game_code = """
         };
 
         const enemyUnitConfigs = {
-            doge: { hp: 20, atk: 8,  speed: 0.9, width: 25, height: 25, color: '#ffcc80', atkCooldown: 60 },
-            snake:{ hp: 17, atk: 11, speed: 1.4, width: 35, height: 15, color: '#a5d6a7', atkCooldown: 50 }
+            doge:  { hp: 20,  atk: 8,  speed: 0.9, width: 25, height: 25, color: '#ffcc80', atkCooldown: 60 },
+            snake: { hp: 17,  atk: 11, speed: 1.4, width: 35, height: 15, color: '#a5d6a7', atkCooldown: 50 },
+            hippo: { hp: 100, atk: 15, speed: 0.5, width: 50, height: 40, color: '#f8bbd0', atkCooldown: 90 } // 하마양 (분홍색)
         };
 
-        // 쿨타임 타이머 관리
         const cooldownState = {
             basic: { ready: true, remaining: 0, total: 500 },
             tank:  { ready: true, remaining: 0, total: 1000 }
@@ -175,6 +169,10 @@ game_code = """
         const enemyUnits = [];
 
         let lastEnemySpawnTime = Date.now();
+
+        // 보스 관련 상태
+        let bossSpawned = false;
+        let waveEffect = { active: false, radius: 0, maxRadius: 300 };
 
         function startGame() {
             if (gameStarted) return;
@@ -225,8 +223,44 @@ game_code = """
             });
         }
 
+        // 보스 하마양 소환 및 노크백 파동 실행
+        function spawnBossHippo() {
+            bossSpawned = true;
+            const config = enemyUnitConfigs.hippo;
+
+            enemyUnits.push({
+                x: enemyCastle.x - config.width,
+                y: groundY - config.height,
+                width: config.width,
+                height: config.height,
+                speed: config.speed,
+                hp: config.hp,
+                maxHp: config.hp,
+                atk: config.atk,
+                color: config.color,
+                atkTimer: 0,
+                atkCooldown: config.atkCooldown,
+                isBoss: true
+            });
+
+            // 파동 이펙트 켜기
+            waveEffect.active = true;
+            waveEffect.radius = 0;
+
+            // 아군 유닛 모두 뒤로 밀쳐내기 (Knockback)
+            playerUnits.forEach(pUnit => {
+                pUnit.x = Math.max(playerCastle.x + playerCastle.width, pUnit.x - 180);
+            });
+        }
+
         function spawnEnemyUnit() {
             if (!gameStarted || gameOver) return;
+
+            // 보스 소환 체크 (성 체력이 1/2 이하)
+            if (!bossSpawned && enemyCastle.hp <= enemyCastle.maxHp / 2) {
+                spawnBossHippo();
+            }
+
             const now = Date.now();
             if (now - lastEnemySpawnTime > Math.random() * 1500 + 2500) {
                 lastEnemySpawnTime = now;
@@ -247,7 +281,8 @@ game_code = """
                         atk: config.atk,
                         color: config.color,
                         atkTimer: 0,
-                        atkCooldown: config.atkCooldown
+                        atkCooldown: config.atkCooldown,
+                        isBoss: false
                     });
                 }
             }
@@ -256,7 +291,6 @@ game_code = """
         function updateUI() {
             document.getElementById("moneyTxt").innerText = Math.floor(money);
 
-            // 기본 고양이 슬롯 상태
             const slotBasic = document.getElementById("slotBasic");
             const cdBasic = document.getElementById("cdBasic");
             const basicRatio = cooldownState.basic.remaining / cooldownState.basic.total;
@@ -268,7 +302,6 @@ game_code = """
                 slotBasic.classList.add("disabled");
             }
 
-            // 탱커 고양이 슬롯 상태
             const slotTank = document.getElementById("slotTank");
             const cdTank = document.getElementById("cdTank");
             const tankRatio = cooldownState.tank.remaining / cooldownState.tank.total;
@@ -292,6 +325,14 @@ game_code = """
             }
 
             spawnEnemyUnit();
+
+            // 파동 애니메이션 업데이트
+            if (waveEffect.active) {
+                waveEffect.radius += 12;
+                if (waveEffect.radius >= waveEffect.maxRadius) {
+                    waveEffect.active = false;
+                }
+            }
 
             playerUnits.forEach((pUnit) => {
                 let targetEnemy = null;
@@ -439,7 +480,7 @@ game_code = """
                 ctx.fillRect(unit.x, unit.y - 8, unit.width * (unit.hp / unit.maxHp), 4);
             });
 
-            // 적군 유닛
+            // 적군 유닛 (하마양 모션 연출 포함)
             enemyUnits.forEach(unit => {
                 ctx.fillStyle = unit.color;
                 ctx.fillRect(unit.x, unit.y, unit.width, unit.height);
@@ -447,13 +488,32 @@ game_code = """
                 ctx.lineWidth = 2;
                 ctx.strokeRect(unit.x, unit.y, unit.width, unit.height);
 
+                // 하마양 특수 비주얼 (입 뻐끔거리는 모션)
+                if (unit.isBoss) {
+                    ctx.fillStyle = "#d81b60";
+                    // 공격 타이머에 따라 입 크기가 변함
+                    const mouthOpen = (unit.atkTimer % 20 > 10) ? 12 : 4;
+                    ctx.fillRect(unit.x - 5, unit.y + 15, 10, mouthOpen);
+                    ctx.strokeRect(unit.x - 5, unit.y + 15, 10, mouthOpen);
+                }
+
                 ctx.fillStyle = "#ff5252";
                 ctx.fillRect(unit.x, unit.y - 8, unit.width, 4);
                 ctx.fillStyle = "#4caf50";
                 ctx.fillRect(unit.x, unit.y - 8, unit.width * (unit.hp / unit.maxHp), 4);
             });
 
-            // 안내 문구 (시작 전)
+            // 보스 소환 파동 이펙트 렌더링
+            if (waveEffect.active) {
+                ctx.save();
+                ctx.strokeStyle = "rgba(239, 83, 80, 0.7)";
+                ctx.lineWidth = 6;
+                ctx.beginPath();
+                ctx.arc(enemyCastle.x, groundY - 40, waveEffect.radius, 0, Math.PI * 2);
+                ctx.stroke();
+                ctx.restore();
+            }
+
             if (!gameStarted) {
                 ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
@@ -461,10 +521,9 @@ game_code = """
                 ctx.fillStyle = "#ffffff";
                 ctx.font = "bold 24px sans-serif";
                 ctx.textAlign = "center";
-                ctx.fillText("⚔️ 상단의 [게임 시작] 버튼을 눌러주세요!", canvas.width / 2, canvas.height / 2);
+                ctx.fillText("⚔️ 상단의 [Stage 2 시작] 버튼을 눌러주세요!", canvas.width / 2, canvas.height / 2);
             }
 
-            // 게임 오버
             if (gameOver) {
                 ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
                 ctx.fillRect(0, 0, canvas.width, canvas.height);
