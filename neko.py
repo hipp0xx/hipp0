@@ -173,7 +173,7 @@ game_code = """
         const enemyUnitConfigs = {
             doge:  { hp: 20,  atk: 8,  speed: 0.9, width: 25, height: 25, color: '#ffcc80', atkCooldown: 60 },
             snake: { hp: 17,  atk: 11, speed: 1.4, width: 35, height: 15, color: '#a5d6a7', atkCooldown: 50 },
-            hippo: { hp: 150, atk: 20, speed: 0.5, width: 50, height: 40, color: '#f8bbd0', atkCooldown: 90 } // 하마양 (HP 150 / ATK 20)
+            hippo: { hp: 300, atk: 20, speed: 0.5, width: 50, height: 40, color: '#f8bbd0', atkCooldown: 45 } // 하마양 (HP 300 / ATK 20 / 공격속도 2배)
         };
 
         const cooldownState = {
@@ -294,7 +294,6 @@ game_code = """
         function spawnEnemyUnit() {
             if (!gameStarted || gameOver) return;
 
-            // Stage 2에서 적 성 체력이 1/2 이하일 때만 하마양 출현
             if (currentStage === 2 && !bossSpawned && enemyCastle.hp <= enemyCastle.maxHp / 2) {
                 spawnBossHippo();
             }
@@ -534,7 +533,7 @@ game_code = """
 
                 if (unit.isBoss) {
                     ctx.fillStyle = "#d81b60";
-                    const mouthOpen = (unit.atkTimer % 20 > 10) ? 12 : 4;
+                    const mouthOpen = (unit.atkTimer % 10 > 5) ? 12 : 4;
                     ctx.fillRect(unit.x - 5, unit.y + 15, 10, mouthOpen);
                     ctx.strokeRect(unit.x - 5, unit.y + 15, 10, mouthOpen);
                 }
