@@ -23,41 +23,120 @@ game_code = """
             border: 2px solid #333;
             background-color: #e0f7fa;
         }
+        .top-bar {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            width: 800px;
+            margin: 10px 0;
+        }
         .money-display {
             font-size: 18px;
             font-weight: bold;
-            margin: 10px 0 5px 0;
             color: #2e7d32;
         }
+        .start-btn {
+            padding: 8px 20px;
+            font-size: 15px;
+            font-weight: bold;
+            color: #fff;
+            background-color: #ff9800;
+            border: 2px solid #e65100;
+            border-radius: 6px;
+            cursor: pointer;
+        }
+        .start-btn:disabled {
+            background-color: #bbb;
+            border-color: #888;
+            cursor: not-allowed;
+        }
+
+        /* 4칸 정사각형 슬롯 레이아웃 */
         .controls {
             display: flex;
             gap: 12px;
+            margin-top: 5px;
         }
-        button {
-            padding: 10px 16px;
-            font-size: 13px;
-            font-weight: bold;
-            cursor: pointer;
-            border: 2px solid #333;
-            border-radius: 6px;
+        .unit-slot {
+            position: relative;
+            width: 75px;
+            height: 75px;
             background-color: #ffffff;
+            border: 2px solid #333;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            user-select: none;
+            overflow: hidden;
+            box-sizing: border-box;
         }
-        button:disabled {
-            background-color: #ccc;
+        .unit-slot.disabled {
             cursor: not-allowed;
-            color: #666;
-            border-color: #999;
+            background-color: #e0e0e0;
+            color: #888;
+        }
+        .unit-slot.empty {
+            background-color: #eceff1;
+            border: 2px dashed #b0bec5;
+            cursor: default;
+            color: #b0bec5;
+        }
+        
+        /* 쿨타임 오버레이 연출 */
+        .cooldown-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.55);
+            pointer-events: none;
+            transition: height 0.05s linear;
+        }
+        .cost-tag {
+            font-size: 11px;
+            color: #d32f2f;
+            margin-top: 2px;
         }
     </style>
 </head>
 <body>
     <canvas id="gameCanvas" width="800" height="300"></canvas>
     
-    <div class="money-display">💰 소지금: <span id="moneyTxt">0</span>원 / 1000원</div>
+    <div class="top-bar">
+        <div class="money-display">💰 소지금: <span id="moneyTxt">0</span>원 / 1000원</div>
+        <button id="btnStart" class="start-btn" onclick="startGame()">⚔️ 게임 시작</button>
+    </div>
 
     <div class="controls">
-        <button id="btnBasic" onclick="spawnPlayerUnit('basic')">🐱 기본 (50원)</button>
-        <button id="btnTank" onclick="spawnPlayerUnit('tank')">🦒 탱커 (75원)</button>
+        <!-- Slot 1: 기본 고양이 -->
+        <div id="slotBasic" class="unit-slot disabled" onclick="spawnPlayerUnit('basic')">
+            <div>🐱 기본</div>
+            <div class="cost-tag">50원</div>
+            <div id="cdBasic" class="cooldown-overlay" style="height: 0%;"></div>
+        </div>
+
+        <!-- Slot 2: 탱커 고양이 -->
+        <div id="slotTank" class="unit-slot disabled" onclick="spawnPlayerUnit('tank')">
+            <div>🦒 탱커</div>
+            <div class="cost-tag">75원</div>
+            <div id="cdTank" class="cooldown-overlay" style="height: 0%;"></div>
+        </div>
+
+        <!-- Slot 3: 빈 슬롯 -->
+        <div class="unit-slot empty">
+            <div>EMPTY</div>
+        </div>
+
+        <!-- Slot 4: 빈 슬롯 -->
+        <div class="unit-slot empty">
+            <div>EMPTY</div>
+        </div>
     </div>
 
     <script>
@@ -65,6 +144,9 @@ game_code = """
         const ctx = canvas.getContext("2d");
 
         const groundY = 220;
+
+        let gameStarted = false;
+        let gameOver = false;
 
         let money = 0;
         const maxMoney = 1000;
@@ -80,9 +162,10 @@ game_code = """
             snake:{ hp: 17, atk: 11, speed: 1.4, width: 35, height: 15, color: '#a5d6a7', atkCooldown: 50 }
         };
 
+        // 쿨타임 타이머 관리
         const cooldownState = {
-            basic: { ready: true },
-            tank:  { ready: true }
+            basic: { ready: true, remaining: 0, total: 500 },
+            tank:  { ready: true, remaining: 0, total: 1000 }
         };
 
         const playerCastle = { x: 50, y: groundY - 80, width: 60, height: 80, hp: 200, maxHp: 200 };
@@ -92,20 +175,40 @@ game_code = """
         const enemyUnits = [];
 
         let lastEnemySpawnTime = Date.now();
-        let gameOver = false;
+
+        function startGame() {
+            if (gameStarted) return;
+            gameStarted = true;
+            document.getElementById("btnStart").disabled = true;
+            document.getElementById("btnStart").innerText = "게임 진행 중";
+            lastEnemySpawnTime = Date.now();
+        }
+
+        function triggerCooldown(type) {
+            const config = playerUnitConfigs[type];
+            cooldownState[type].ready = false;
+            cooldownState[type].total = config.cooldown;
+            cooldownState[type].remaining = config.cooldown;
+
+            const interval = 20;
+            const timer = setInterval(() => {
+                cooldownState[type].remaining -= interval;
+                if (cooldownState[type].remaining <= 0) {
+                    cooldownState[type].remaining = 0;
+                    cooldownState[type].ready = true;
+                    clearInterval(timer);
+                }
+            }, interval);
+        }
 
         function spawnPlayerUnit(type) {
-            if (gameOver) return;
+            if (!gameStarted || gameOver) return;
             const config = playerUnitConfigs[type];
 
             if (money < config.cost || !cooldownState[type].ready) return;
 
             money -= config.cost;
-
-            cooldownState[type].ready = false;
-            setTimeout(() => {
-                cooldownState[type].ready = true;
-            }, config.cooldown);
+            triggerCooldown(type);
 
             playerUnits.push({
                 x: playerCastle.x + playerCastle.width,
@@ -123,7 +226,7 @@ game_code = """
         }
 
         function spawnEnemyUnit() {
-            if (gameOver) return;
+            if (!gameStarted || gameOver) return;
             const now = Date.now();
             if (now - lastEnemySpawnTime > Math.random() * 1500 + 2500) {
                 lastEnemySpawnTime = now;
@@ -153,15 +256,36 @@ game_code = """
         function updateUI() {
             document.getElementById("moneyTxt").innerText = Math.floor(money);
 
-            const btnBasic = document.getElementById("btnBasic");
-            const btnTank = document.getElementById("btnTank");
+            // 기본 고양이 슬롯 상태
+            const slotBasic = document.getElementById("slotBasic");
+            const cdBasic = document.getElementById("cdBasic");
+            const basicRatio = cooldownState.basic.remaining / cooldownState.basic.total;
+            cdBasic.style.height = (basicRatio * 100) + "%";
 
-            btnBasic.disabled = gameOver || (money < playerUnitConfigs.basic.cost) || !cooldownState.basic.ready;
-            btnTank.disabled = gameOver || (money < playerUnitConfigs.tank.cost) || !cooldownState.tank.ready;
+            if (gameStarted && !gameOver && money >= playerUnitConfigs.basic.cost && cooldownState.basic.ready) {
+                slotBasic.classList.remove("disabled");
+            } else {
+                slotBasic.classList.add("disabled");
+            }
+
+            // 탱커 고양이 슬롯 상태
+            const slotTank = document.getElementById("slotTank");
+            const cdTank = document.getElementById("cdTank");
+            const tankRatio = cooldownState.tank.remaining / cooldownState.tank.total;
+            cdTank.style.height = (tankRatio * 100) + "%";
+
+            if (gameStarted && !gameOver && money >= playerUnitConfigs.tank.cost && cooldownState.tank.ready) {
+                slotTank.classList.remove("disabled");
+            } else {
+                slotTank.classList.add("disabled");
+            }
         }
 
         function update() {
-            if (gameOver) return;
+            if (!gameStarted || gameOver) {
+                updateUI();
+                return;
+            }
 
             if (money < maxMoney) {
                 money = Math.min(maxMoney, money + moneyIncomeRate);
@@ -329,6 +453,17 @@ game_code = """
                 ctx.fillRect(unit.x, unit.y - 8, unit.width * (unit.hp / unit.maxHp), 4);
             });
 
+            // 안내 문구 (시작 전)
+            if (!gameStarted) {
+                ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+                ctx.fillStyle = "#ffffff";
+                ctx.font = "bold 24px sans-serif";
+                ctx.textAlign = "center";
+                ctx.fillText("⚔️ 상단의 [게임 시작] 버튼을 눌러주세요!", canvas.width / 2, canvas.height / 2);
+            }
+
             // 게임 오버
             if (gameOver) {
                 ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
@@ -357,4 +492,4 @@ game_code = """
 </html>
 """
 
-components.html(game_code, height=450)
+components.html(game_code, height=480)
