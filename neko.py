@@ -2,7 +2,7 @@ import streamlit as st
 import streamlit.components.v1 as components
 
 st.set_page_config(page_title="미니 냥코대전쟁", layout="centered")
-st.title("🐱 미니 냥코대전쟁 - Stage 2")
+st.title("🐱 미니 냥코대전쟁")
 
 game_code = """
 <!DOCTYPE html>
@@ -35,9 +35,18 @@ game_code = """
             font-weight: bold;
             color: #2e7d32;
         }
-        .start-btn {
-            padding: 8px 20px;
-            font-size: 15px;
+        .stage-title {
+            font-size: 18px;
+            font-weight: bold;
+            color: #1565c0;
+        }
+        .btn-group {
+            display: flex;
+            gap: 8px;
+        }
+        .action-btn {
+            padding: 8px 16px;
+            font-size: 14px;
             font-weight: bold;
             color: #fff;
             background-color: #ff9800;
@@ -45,10 +54,14 @@ game_code = """
             border-radius: 6px;
             cursor: pointer;
         }
-        .start-btn:disabled {
+        .action-btn:disabled {
             background-color: #bbb;
             border-color: #888;
             cursor: not-allowed;
+        }
+        .next-btn {
+            background-color: #4caf50;
+            border-color: #2e7d32;
         }
 
         .controls {
@@ -107,8 +120,12 @@ game_code = """
     <canvas id="gameCanvas" width="800" height="300"></canvas>
     
     <div class="top-bar">
+        <div class="stage-title" id="stageTxt">🚩 Stage 1</div>
         <div class="money-display">💰 소지금: <span id="moneyTxt">0</span>원 / 1000원</div>
-        <button id="btnStart" class="start-btn" onclick="startGame()">⚔️ Stage 2 시작</button>
+        <div class="btn-group">
+            <button id="btnStart" class="action-btn" onclick="startGame()">⚔️ 게임 시작</button>
+            <button id="btnNext" class="action-btn next-btn" style="display: none;" onclick="goToNextStage()">➡️ 다음 스테이지</button>
+        </div>
     </div>
 
     <div class="controls">
@@ -139,8 +156,10 @@ game_code = """
 
         const groundY = 220;
 
+        let currentStage = 1;
         let gameStarted = false;
         let gameOver = false;
+        let gameWon = false;
 
         let money = 0;
         const maxMoney = 1000;
@@ -154,7 +173,7 @@ game_code = """
         const enemyUnitConfigs = {
             doge:  { hp: 20,  atk: 8,  speed: 0.9, width: 25, height: 25, color: '#ffcc80', atkCooldown: 60 },
             snake: { hp: 17,  atk: 11, speed: 1.4, width: 35, height: 15, color: '#a5d6a7', atkCooldown: 50 },
-            hippo: { hp: 100, atk: 15, speed: 0.5, width: 50, height: 40, color: '#f8bbd0', atkCooldown: 90 } // 하마양 (분홍색)
+            hippo: { hp: 150, atk: 20, speed: 0.5, width: 50, height: 40, color: '#f8bbd0', atkCooldown: 90 } // 하마양 (HP 150 / ATK 20)
         };
 
         const cooldownState = {
@@ -162,17 +181,35 @@ game_code = """
             tank:  { ready: true, remaining: 0, total: 1000 }
         };
 
-        const playerCastle = { x: 50, y: groundY - 80, width: 60, height: 80, hp: 200, maxHp: 200 };
-        const enemyCastle = { x: 690, y: groundY - 80, width: 60, height: 80, hp: 200, maxHp: 200 };
+        let playerCastle = { x: 50, y: groundY - 80, width: 60, height: 80, hp: 200, maxHp: 200 };
+        let enemyCastle = { x: 690, y: groundY - 80, width: 60, height: 80, hp: 200, maxHp: 200 };
 
-        const playerUnits = [];
-        const enemyUnits = [];
+        let playerUnits = [];
+        let enemyUnits = [];
 
         let lastEnemySpawnTime = Date.now();
-
-        // 보스 관련 상태
         let bossSpawned = false;
         let waveEffect = { active: false, radius: 0, maxRadius: 300 };
+
+        function initStage(stageNum) {
+            currentStage = stageNum;
+            gameStarted = false;
+            gameOver = false;
+            gameWon = false;
+            bossSpawned = false;
+            money = 0;
+
+            playerCastle.hp = 200;
+            enemyCastle.hp = 200;
+
+            playerUnits = [];
+            enemyUnits = [];
+
+            document.getElementById("stageTxt").innerText = "🚩 Stage " + currentStage;
+            document.getElementById("btnStart").disabled = false;
+            document.getElementById("btnStart").innerText = "⚔️ 게임 시작";
+            document.getElementById("btnNext").style.display = "none";
+        }
 
         function startGame() {
             if (gameStarted) return;
@@ -180,6 +217,10 @@ game_code = """
             document.getElementById("btnStart").disabled = true;
             document.getElementById("btnStart").innerText = "게임 진행 중";
             lastEnemySpawnTime = Date.now();
+        }
+
+        function goToNextStage() {
+            initStage(2);
         }
 
         function triggerCooldown(type) {
@@ -223,7 +264,6 @@ game_code = """
             });
         }
 
-        // 보스 하마양 소환 및 노크백 파동 실행
         function spawnBossHippo() {
             bossSpawned = true;
             const config = enemyUnitConfigs.hippo;
@@ -243,11 +283,9 @@ game_code = """
                 isBoss: true
             });
 
-            // 파동 이펙트 켜기
             waveEffect.active = true;
             waveEffect.radius = 0;
 
-            // 아군 유닛 모두 뒤로 밀쳐내기 (Knockback)
             playerUnits.forEach(pUnit => {
                 pUnit.x = Math.max(playerCastle.x + playerCastle.width, pUnit.x - 180);
             });
@@ -256,8 +294,8 @@ game_code = """
         function spawnEnemyUnit() {
             if (!gameStarted || gameOver) return;
 
-            // 보스 소환 체크 (성 체력이 1/2 이하)
-            if (!bossSpawned && enemyCastle.hp <= enemyCastle.maxHp / 2) {
+            // Stage 2에서 적 성 체력이 1/2 이하일 때만 하마양 출현
+            if (currentStage === 2 && !bossSpawned && enemyCastle.hp <= enemyCastle.maxHp / 2) {
                 spawnBossHippo();
             }
 
@@ -326,7 +364,6 @@ game_code = """
 
             spawnEnemyUnit();
 
-            // 파동 애니메이션 업데이트
             if (waveEffect.active) {
                 waveEffect.radius += 12;
                 if (waveEffect.radius >= waveEffect.maxRadius) {
@@ -393,8 +430,15 @@ game_code = """
                 if (enemyUnits[i].hp <= 0) enemyUnits.splice(i, 1);
             }
 
-            if (playerCastle.hp <= 0 || enemyCastle.hp <= 0) {
+            if (enemyCastle.hp <= 0) {
                 gameOver = true;
+                gameWon = true;
+                if (currentStage === 1) {
+                    document.getElementById("btnNext").style.display = "block";
+                }
+            } else if (playerCastle.hp <= 0) {
+                gameOver = true;
+                gameWon = false;
             }
 
             updateUI();
@@ -480,7 +524,7 @@ game_code = """
                 ctx.fillRect(unit.x, unit.y - 8, unit.width * (unit.hp / unit.maxHp), 4);
             });
 
-            // 적군 유닛 (하마양 모션 연출 포함)
+            // 적군 유닛
             enemyUnits.forEach(unit => {
                 ctx.fillStyle = unit.color;
                 ctx.fillRect(unit.x, unit.y, unit.width, unit.height);
@@ -488,10 +532,8 @@ game_code = """
                 ctx.lineWidth = 2;
                 ctx.strokeRect(unit.x, unit.y, unit.width, unit.height);
 
-                // 하마양 특수 비주얼 (입 뻐끔거리는 모션)
                 if (unit.isBoss) {
                     ctx.fillStyle = "#d81b60";
-                    // 공격 타이머에 따라 입 크기가 변함
                     const mouthOpen = (unit.atkTimer % 20 > 10) ? 12 : 4;
                     ctx.fillRect(unit.x - 5, unit.y + 15, 10, mouthOpen);
                     ctx.strokeRect(unit.x - 5, unit.y + 15, 10, mouthOpen);
@@ -503,7 +545,7 @@ game_code = """
                 ctx.fillRect(unit.x, unit.y - 8, unit.width * (unit.hp / unit.maxHp), 4);
             });
 
-            // 보스 소환 파동 이펙트 렌더링
+            // 보스 소환 파동 이펙트
             if (waveEffect.active) {
                 ctx.save();
                 ctx.strokeStyle = "rgba(239, 83, 80, 0.7)";
@@ -521,7 +563,7 @@ game_code = """
                 ctx.fillStyle = "#ffffff";
                 ctx.font = "bold 24px sans-serif";
                 ctx.textAlign = "center";
-                ctx.fillText("⚔️ 상단의 [Stage 2 시작] 버튼을 눌러주세요!", canvas.width / 2, canvas.height / 2);
+                ctx.fillText("⚔️ 상단의 [게임 시작] 버튼을 눌러주세요!", canvas.width / 2, canvas.height / 2);
             }
 
             if (gameOver) {
@@ -531,8 +573,12 @@ game_code = """
                 ctx.fillStyle = "#ffffff";
                 ctx.font = "bold 32px sans-serif";
                 ctx.textAlign = "center";
-                if (enemyCastle.hp <= 0) {
-                    ctx.fillText("🎉 VICTORY! (승리)", canvas.width / 2, canvas.height / 2);
+                if (gameWon) {
+                    if (currentStage === 1) {
+                        ctx.fillText("🎉 STAGE 1 CLEAR! (다음 스테이지 버튼을 누르세요)", canvas.width / 2, canvas.height / 2);
+                    } else {
+                        ctx.fillText("🏆 ALL STAGE CLEAR! (전체 승리)", canvas.width / 2, canvas.height / 2);
+                    }
                 } else {
                     ctx.fillText("💀 DEFEAT... (패배)", canvas.width / 2, canvas.height / 2);
                 }
