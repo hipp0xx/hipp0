@@ -19,9 +19,14 @@ game_code = """
             background-color: #f0f0f0;
             font-family: sans-serif;
         }
+        .game-container {
+            position: relative;
+            width: 800px;
+        }
         canvas {
             border: 2px solid #333;
             background-color: #e0f7fa;
+            display: block;
         }
         .top-bar {
             display: flex;
@@ -40,34 +45,51 @@ game_code = """
             font-weight: bold;
             color: #1565c0;
         }
-        .btn-group {
+
+        /* 캔버스 중앙 오버레이 버튼 */
+        .center-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 800px;
+            height: 300px;
             display: flex;
-            gap: 8px;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.4);
+            z-index: 5;
         }
+
         .action-btn {
-            padding: 8px 16px;
-            font-size: 14px;
+            padding: 12px 24px;
+            font-size: 16px;
             font-weight: bold;
             color: #fff;
             background-color: #ff9800;
             border: 2px solid #e65100;
-            border-radius: 6px;
+            border-radius: 8px;
             cursor: pointer;
+            margin-top: 15px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
         }
-        .action-btn:disabled {
-            background-color: #bbb;
-            border-color: #888;
-            cursor: not-allowed;
+        .action-btn:hover {
+            background-color: #f57c00;
         }
         .next-btn {
             background-color: #4caf50;
             border-color: #2e7d32;
+        }
+        .next-btn:hover {
+            background-color: #388e3c;
         }
 
         .controls {
             display: flex;
             gap: 12px;
             margin-top: 5px;
+            justify-content: center;
+            width: 800px;
         }
         .unit-slot {
             position: relative;
@@ -119,12 +141,13 @@ game_code = """
         .reward-modal {
             display: none;
             position: absolute;
-            top: 70px;
+            top: 30px;
+            left: 210px;
             width: 380px;
             background: #ffffff;
             border: 3px solid #ff9800;
             border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.3);
+            box-shadow: 0 4px 20px rgba(0,0,0,0.4);
             text-align: center;
             padding: 20px;
             z-index: 10;
@@ -142,21 +165,24 @@ game_code = """
     </style>
 </head>
 <body>
-    <canvas id="gameCanvas" width="800" height="300"></canvas>
-    
-    <!-- 획득 팝업 창 -->
-    <div id="rewardModal" class="reward-modal">
-        <h2>🎉 캐릭터 해금!</h2>
-        <p><b>[🪓 도끼맨]</b>을(를) 획득했습니다!<br>사거리가 긴 신규 원거리 딜러 캐릭터입니다.</p>
-        <button class="action-btn next-btn" onclick="closeModalAndStartStage2()">➡️ Stage 2 시작하기</button>
+    <div class="top-bar">
+        <div class="money-display">💰 소지금: <span id="moneyTxt">0</span>원 / 1000원</div>
+        <div class="stage-title" id="stageTxt">🚩 Stage 1</div>
     </div>
 
-    <div class="top-bar">
-        <div class="stage-title" id="stageTxt">🚩 Stage 1</div>
-        <div class="money-display">💰 소지금: <span id="moneyTxt">0</span>원 / 1000원</div>
-        <div class="btn-group">
-            <button id="btnStart" class="action-btn" onclick="startGame()">⚔️ 게임 시작</button>
-            <button id="btnNext" class="action-btn next-btn" style="display: none;" onclick="showRewardModal()">➡️ 다음 스테이지</button>
+    <div class="game-container">
+        <canvas id="gameCanvas" width="800" height="300"></canvas>
+        
+        <div id="centerOverlay" class="center-overlay">
+            <h2 id="overlayMsg" style="color: white; margin: 0; font-size: 24px;">⚔️ 미니 냥코대전쟁</h2>
+            <button id="btnStartCenter" class="action-btn" onclick="startGame()">⚔️ 게임 시작</button>
+            <button id="btnNextCenter" class="action-btn next-btn" style="display: none;" onclick="showRewardModal()">➡️ 다음 스테이지</button>
+        </div>
+
+        <div id="rewardModal" class="reward-modal">
+            <h2>🎉 캐릭터 해금!</h2>
+            <p><b>[🪓 도끼맨]</b>을(를) 획득했습니다!<br>사거리가 긴 신규 원거리 딜러 캐릭터입니다.</p>
+            <button class="action-btn next-btn" onclick="closeModalAndStartStage2()">➡️ Stage 2 시작하기</button>
         </div>
     </div>
 
@@ -173,14 +199,12 @@ game_code = """
             <div id="cdTank" class="cooldown-overlay" style="height: 0%;"></div>
         </div>
 
-        <!-- Slot 3: Stage 1에선 안 보임 (display: none) -->
         <div id="slotAxe" class="unit-slot disabled" style="display: none;" onclick="spawnPlayerUnit('axe')">
             <div>🪓 도끼맨</div>
             <div class="cost-tag">100원</div>
             <div id="cdAxe" class="cooldown-overlay" style="height: 0%;"></div>
         </div>
 
-        <!-- Slot 4: 빈 슬롯 -->
         <div id="slotEmpty4" class="unit-slot empty">
             <div>EMPTY</div>
         </div>
@@ -204,7 +228,7 @@ game_code = """
         const playerUnitConfigs = {
             basic: { cost: 50,  cooldown: 500,  hp: 30, atk: 10, speed: 1.2, width: 25, height: 25, range: 5,   color: '#ffffff', atkCooldown: 60 },
             tank:  { cost: 75,  cooldown: 1000, hp: 60, atk: 7,  speed: 0.6, width: 20, height: 50, range: 5,   color: '#ffffff', atkCooldown: 80 },
-            axe:   { cost: 100, cooldown: 2000, hp: 20, atk: 25, speed: 1.0, width: 25, height: 30, range: 125, color: '#ff7043', atkCooldown: 70 } // 쿨타임 2000ms / 사거리 125px (5배)
+            axe:   { cost: 100, cooldown: 2000, hp: 20, atk: 25, speed: 1.0, width: 25, height: 30, range: 125, color: '#ff7043', atkCooldown: 70 }
         };
 
         const enemyUnitConfigs = {
@@ -219,8 +243,9 @@ game_code = """
             axe:   { ready: true, remaining: 0, total: 2000 }
         };
 
-        let playerCastle = { x: 50, y: groundY - 80, width: 60, height: 80, hp: 200, maxHp: 200 };
-        let enemyCastle = { x: 690, y: groundY - 80, width: 60, height: 80, hp: 200, maxHp: 200 };
+        // 성 위치 반전: 아군 성 (우측: 690), 적군 성 (좌측: 50)
+        let playerCastle = { x: 690, y: groundY - 80, width: 60, height: 80, hp: 200, maxHp: 200 };
+        let enemyCastle = { x: 50, y: groundY - 80, width: 60, height: 80, hp: 200, maxHp: 200 };
 
         let playerUnits = [];
         let enemyUnits = [];
@@ -244,11 +269,11 @@ game_code = """
             enemyUnits = [];
 
             document.getElementById("stageTxt").innerText = "🚩 Stage " + currentStage;
-            document.getElementById("btnStart").disabled = false;
-            document.getElementById("btnStart").innerText = "⚔️ 게임 시작";
-            document.getElementById("btnNext").style.display = "none";
+            document.getElementById("centerOverlay").style.display = "flex";
+            document.getElementById("overlayMsg").innerText = "🚩 Stage " + currentStage;
+            document.getElementById("btnStartCenter").style.display = "inline-block";
+            document.getElementById("btnNextCenter").style.display = "none";
 
-            // Stage 2일 때 도끼맨 슬롯 등장
             if (currentStage >= 2) {
                 document.getElementById("slotAxe").style.display = "flex";
             } else {
@@ -259,12 +284,12 @@ game_code = """
         function startGame() {
             if (gameStarted) return;
             gameStarted = true;
-            document.getElementById("btnStart").disabled = true;
-            document.getElementById("btnStart").innerText = "게임 진행 중";
+            document.getElementById("centerOverlay").style.display = "none";
             lastEnemySpawnTime = Date.now();
         }
 
         function showRewardModal() {
+            document.getElementById("centerOverlay").style.display = "none";
             document.getElementById("rewardModal").style.display = "block";
         }
 
@@ -292,7 +317,6 @@ game_code = """
 
         function spawnPlayerUnit(type) {
             if (!gameStarted || gameOver) return;
-            
             if (type === 'axe' && currentStage < 2) return;
 
             const config = playerUnitConfigs[type];
@@ -302,9 +326,10 @@ game_code = """
             money -= config.cost;
             triggerCooldown(type);
 
+            // 아군 유닛 소환 (우측에서 좌측으로 이동)
             playerUnits.push({
                 type: type,
-                x: playerCastle.x + playerCastle.width,
+                x: playerCastle.x - config.width,
                 y: groundY - config.height,
                 width: config.width,
                 height: config.height,
@@ -323,8 +348,9 @@ game_code = """
             bossSpawned = true;
             const config = enemyUnitConfigs.hippo;
 
+            // 보스 소환 (좌측 적 성 위치)
             enemyUnits.push({
-                x: enemyCastle.x - config.width,
+                x: enemyCastle.x + enemyCastle.width,
                 y: groundY - config.height,
                 width: config.width,
                 height: config.height,
@@ -341,8 +367,9 @@ game_code = """
             waveEffect.active = true;
             waveEffect.radius = 0;
 
+            // 밀쳐내기 (우측 아군 유닛을 우측으로 밀어냄)
             playerUnits.forEach(pUnit => {
-                pUnit.x = Math.max(playerCastle.x + playerCastle.width, pUnit.x - 180);
+                pUnit.x = Math.min(playerCastle.x - pUnit.width, pUnit.x + 180);
             });
         }
 
@@ -362,8 +389,9 @@ game_code = """
                     const isDoge = Math.random() < 0.6;
                     const config = isDoge ? enemyUnitConfigs.doge : enemyUnitConfigs.snake;
 
+                    // 적군 소환 (좌측에서 우측으로 이동)
                     enemyUnits.push({
-                        x: enemyCastle.x - config.width - (i * 20),
+                        x: enemyCastle.x + enemyCastle.width + (i * 20),
                         y: groundY - config.height,
                         width: config.width,
                         height: config.height,
@@ -430,10 +458,11 @@ game_code = """
                 }
             }
 
+            // 아군 유닛 이동 및 공격 (우측 -> 좌측 방향)
             playerUnits.forEach((pUnit) => {
                 let targetEnemy = null;
                 for (let eUnit of enemyUnits) {
-                    if (eUnit.x > pUnit.x && eUnit.x <= pUnit.x + pUnit.width + pUnit.range) {
+                    if (eUnit.x + eUnit.width < pUnit.x && eUnit.x + eUnit.width >= pUnit.x - pUnit.range) {
                         targetEnemy = eUnit;
                         break;
                     }
@@ -445,21 +474,22 @@ game_code = """
                         pUnit.atkTimer = 0;
                         targetEnemy.hp -= pUnit.atk;
                     }
-                } else if (pUnit.x + pUnit.width + pUnit.range >= enemyCastle.x) {
+                } else if (pUnit.x - pUnit.range <= enemyCastle.x + enemyCastle.width) {
                     pUnit.atkTimer++;
                     if (pUnit.atkTimer >= pUnit.atkCooldown) {
                         pUnit.atkTimer = 0;
                         enemyCastle.hp = Math.max(0, enemyCastle.hp - pUnit.atk);
                     }
                 } else {
-                    pUnit.x += pUnit.speed;
+                    pUnit.x -= pUnit.speed;
                 }
             });
 
+            // 적군 유닛 이동 및 공격 (좌측 -> 우측 방향)
             enemyUnits.forEach((eUnit) => {
                 let targetPlayer = null;
                 for (let pUnit of playerUnits) {
-                    if (pUnit.x + pUnit.width >= eUnit.x - 5 && pUnit.x < eUnit.x) {
+                    if (pUnit.x <= eUnit.x + eUnit.width + 5 && pUnit.x + pUnit.width > eUnit.x) {
                         targetPlayer = pUnit;
                         break;
                     }
@@ -471,14 +501,14 @@ game_code = """
                         eUnit.atkTimer = 0;
                         targetPlayer.hp -= eUnit.atk;
                     }
-                } else if (eUnit.x <= playerCastle.x + playerCastle.width) {
+                } else if (eUnit.x + eUnit.width >= playerCastle.x) {
                     eUnit.atkTimer++;
                     if (eUnit.atkTimer >= eUnit.atkCooldown) {
                         eUnit.atkTimer = 0;
                         playerCastle.hp = Math.max(0, playerCastle.hp - eUnit.atk);
                     }
                 } else {
-                    eUnit.x -= eUnit.speed;
+                    eUnit.x += eUnit.speed;
                 }
             });
 
@@ -492,12 +522,23 @@ game_code = """
             if (enemyCastle.hp <= 0) {
                 gameOver = true;
                 gameWon = true;
+                document.getElementById("centerOverlay").style.display = "flex";
                 if (currentStage === 1) {
-                    document.getElementById("btnNext").style.display = "block";
+                    document.getElementById("overlayMsg").innerText = "🎉 STAGE 1 CLEAR!";
+                    document.getElementById("btnStartCenter").style.display = "none";
+                    document.getElementById("btnNextCenter").style.display = "inline-block";
+                } else {
+                    document.getElementById("overlayMsg").innerText = "🏆 ALL STAGE CLEAR!";
+                    document.getElementById("btnStartCenter").style.display = "none";
+                    document.getElementById("btnNextCenter").style.display = "none";
                 }
             } else if (playerCastle.hp <= 0) {
                 gameOver = true;
                 gameWon = false;
+                document.getElementById("centerOverlay").style.display = "flex";
+                document.getElementById("overlayMsg").innerText = "💀 DEFEAT... (패배)";
+                document.getElementById("btnStartCenter").style.display = "none";
+                document.getElementById("btnNextCenter").style.display = "none";
             }
 
             updateUI();
@@ -516,18 +557,7 @@ game_code = """
             ctx.lineTo(canvas.width, groundY);
             ctx.stroke();
 
-            // 아군 성
-            ctx.fillStyle = "#42a5f5";
-            ctx.fillRect(playerCastle.x, playerCastle.y, playerCastle.width, playerCastle.height);
-            ctx.fillStyle = "#1e88e5";
-            ctx.beginPath();
-            ctx.moveTo(playerCastle.x - 10, playerCastle.y);
-            ctx.lineTo(playerCastle.x + playerCastle.width / 2, playerCastle.y - 30);
-            ctx.lineTo(playerCastle.x + playerCastle.width + 10, playerCastle.y);
-            ctx.closePath();
-            ctx.fill();
-
-            // 적군 성
+            // 적군 성 (좌측)
             ctx.fillStyle = "#ef5350";
             ctx.fillRect(enemyCastle.x, enemyCastle.y, enemyCastle.width, enemyCastle.height);
             ctx.fillStyle = "#e53935";
@@ -538,21 +568,31 @@ game_code = """
             ctx.closePath();
             ctx.fill();
 
-            // 성 이름
+            // 아군 성 (우측)
+            ctx.fillStyle = "#42a5f5";
+            ctx.fillRect(playerCastle.x, playerCastle.y, playerCastle.width, playerCastle.height);
+            ctx.fillStyle = "#1e88e5";
+            ctx.beginPath();
+            ctx.moveTo(playerCastle.x - 10, playerCastle.y);
+            ctx.lineTo(playerCastle.x + playerCastle.width / 2, playerCastle.y - 30);
+            ctx.lineTo(playerCastle.x + playerCastle.width + 10, playerCastle.y);
+            ctx.closePath();
+            ctx.fill();
+
+            // 성 이름 & 체력바
             ctx.fillStyle = "#000000";
             ctx.font = "bold 13px sans-serif";
             ctx.textAlign = "center";
-            ctx.fillText("아군 성 (" + playerCastle.hp + "/" + playerCastle.maxHp + ")", playerCastle.x + playerCastle.width / 2, playerCastle.y - 40);
             ctx.fillText("적군 성 (" + enemyCastle.hp + "/" + enemyCastle.maxHp + ")", enemyCastle.x + enemyCastle.width / 2, enemyCastle.y - 40);
+            ctx.fillText("아군 성 (" + playerCastle.hp + "/" + playerCastle.maxHp + ")", playerCastle.x + playerCastle.width / 2, playerCastle.y - 40);
 
-            // 성 체력바
             ctx.fillStyle = "#e0e0e0";
-            ctx.fillRect(playerCastle.x, playerCastle.y - 35, playerCastle.width, 6);
             ctx.fillRect(enemyCastle.x, enemyCastle.y - 35, enemyCastle.width, 6);
+            ctx.fillRect(playerCastle.x, playerCastle.y - 35, playerCastle.width, 6);
             
             ctx.fillStyle = "#4caf50";
-            ctx.fillRect(playerCastle.x, playerCastle.y - 35, playerCastle.width * (playerCastle.hp / playerCastle.maxHp), 6);
             ctx.fillRect(enemyCastle.x, enemyCastle.y - 35, enemyCastle.width * (enemyCastle.hp / enemyCastle.maxHp), 6);
+            ctx.fillRect(playerCastle.x, playerCastle.y - 35, playerCastle.width * (playerCastle.hp / playerCastle.maxHp), 6);
 
             // 아군 유닛
             playerUnits.forEach(unit => {
@@ -577,13 +617,13 @@ game_code = """
                 ctx.fill();
                 ctx.stroke();
 
-                // 도끼맨 투척 이펙트
+                // 도끼맨 좌측 방향 투척 이펙트
                 if (unit.type === 'axe' && unit.atkTimer > unit.atkCooldown - 15) {
                     ctx.strokeStyle = "#d84315";
                     ctx.lineWidth = 3;
                     ctx.beginPath();
-                    ctx.moveTo(unit.x + unit.width, unit.y + 10);
-                    ctx.lineTo(unit.x + unit.width + unit.range, unit.y + 10);
+                    ctx.moveTo(unit.x, unit.y + 10);
+                    ctx.lineTo(unit.x - unit.range, unit.y + 10);
                     ctx.stroke();
                 }
 
@@ -604,8 +644,8 @@ game_code = """
                 if (unit.isBoss) {
                     ctx.fillStyle = "#d81b60";
                     const mouthOpen = (unit.atkTimer % 10 > 5) ? 12 : 4;
-                    ctx.fillRect(unit.x - 5, unit.y + 15, 10, mouthOpen);
-                    ctx.strokeRect(unit.x - 5, unit.y + 15, 10, mouthOpen);
+                    ctx.fillRect(unit.x + unit.width - 5, unit.y + 15, 10, mouthOpen);
+                    ctx.strokeRect(unit.x + unit.width - 5, unit.y + 15, 10, mouthOpen);
                 }
 
                 ctx.fillStyle = "#ff5252";
@@ -620,37 +660,9 @@ game_code = """
                 ctx.strokeStyle = "rgba(239, 83, 80, 0.7)";
                 ctx.lineWidth = 6;
                 ctx.beginPath();
-                ctx.arc(enemyCastle.x, groundY - 40, waveEffect.radius, 0, Math.PI * 2);
+                ctx.arc(enemyCastle.x + enemyCastle.width, groundY - 40, waveEffect.radius, 0, Math.PI * 2);
                 ctx.stroke();
                 ctx.restore();
-            }
-
-            if (!gameStarted) {
-                ctx.fillStyle = "rgba(0, 0, 0, 0.4)";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-                ctx.fillStyle = "#ffffff";
-                ctx.font = "bold 24px sans-serif";
-                ctx.textAlign = "center";
-                ctx.fillText("⚔️ 상단의 [게임 시작] 버튼을 눌러주세요!", canvas.width / 2, canvas.height / 2);
-            }
-
-            if (gameOver) {
-                ctx.fillStyle = "rgba(0, 0, 0, 0.6)";
-                ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-                ctx.fillStyle = "#ffffff";
-                ctx.font = "bold 32px sans-serif";
-                ctx.textAlign = "center";
-                if (gameWon) {
-                    if (currentStage === 1) {
-                        ctx.fillText("🎉 STAGE 1 CLEAR! (다음 스테이지 버튼을 누르세요)", canvas.width / 2, canvas.height / 2);
-                    } else {
-                        ctx.fillText("🏆 ALL STAGE CLEAR! (전체 승리)", canvas.width / 2, canvas.height / 2);
-                    }
-                } else {
-                    ctx.fillText("💀 DEFEAT... (패배)", canvas.width / 2, canvas.height / 2);
-                }
             }
         }
 
