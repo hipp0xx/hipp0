@@ -51,10 +51,10 @@ game_code = """
             font-weight: bold;
         }
         .settings-btn:hover { background-color: #455a64; }
-        .money-display { font-size: 18px; font-weight: bold; color: #2e7d32; }
+        .money-display { font-size: 16px; font-weight: bold; color: #2e7d32; }
+        .ticket-display { font-size: 16px; font-weight: bold; color: #7b1fa2; margin-left: 10px; }
         .stage-title { font-size: 18px; font-weight: bold; color: #1565c0; }
 
-        /* 화면 오버레이 공통 (홈, 스테이지 선택, 덱편성 등) */
         .screen-overlay {
             display: none;
             position: absolute;
@@ -96,12 +96,11 @@ game_code = """
             cursor: pointer;
             margin: 5px;
             box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-            min-width: 160px;
+            min-width: 140px;
         }
         .action-btn:hover { background-color: #f57c00; }
         .action-btn.disabled { background-color: #b0bec5; border-color: #78909c; cursor: not-allowed; }
 
-        /* 하단 8칸 덱 컨트롤 (4x2) */
         .controls-container {
             display: flex;
             flex-direction: column;
@@ -116,7 +115,7 @@ game_code = """
         }
         .unit-slot {
             position: relative;
-            width: 70px;
+            width: 80px;
             height: 55px;
             background-color: #ffffff;
             border: 2px solid #333;
@@ -126,7 +125,7 @@ game_code = """
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            font-size: 11px;
+            font-size: 10px;
             font-weight: bold;
             user-select: none;
             overflow: hidden;
@@ -147,7 +146,6 @@ game_code = """
         }
         .cost-tag { font-size: 10px; color: #d32f2f; margin-top: 2px; }
 
-        /* 팝업 모달 */
         .modal {
             display: none;
             position: absolute;
@@ -164,28 +162,37 @@ game_code = """
             box-sizing: border-box;
         }
         
-        /* 덱 편성 UI 전용 */
         .deck-builder-box {
             display: flex;
             flex-direction: column;
             align-items: center;
-            gap: 10px;
+            gap: 8px;
         }
         .inventory-list {
             display: flex;
-            gap: 10px;
-            margin-top: 10px;
+            flex-wrap: wrap;
+            gap: 8px;
+            justify-content: center;
+            margin-top: 5px;
+            max-width: 700px;
         }
         .inv-item {
-            padding: 8px 12px;
+            padding: 6px 10px;
             background: #fff;
             border: 2px solid #333;
             border-radius: 6px;
             cursor: pointer;
-            font-size: 12px;
+            font-size: 11px;
             font-weight: bold;
         }
         .inv-item.selected { opacity: 0.4; cursor: default; }
+
+        .gacha-result {
+            font-size: 20px;
+            font-weight: bold;
+            color: #d32f2f;
+            margin: 15px 0;
+        }
     </style>
 </head>
 <body>
@@ -193,6 +200,7 @@ game_code = """
         <div class="left-group">
             <button class="settings-btn" onclick="openSettings()">⚙️ 설정</button>
             <div class="money-display">💰 소지금: <span id="moneyTxt">0</span>원 / 1000원</div>
+            <div class="ticket-display">🎟️ 뽑기권: <span id="ticketTxt">0</span>장</div>
         </div>
         <div class="stage-title" id="stageTxt">🚩 대기 중</div>
     </div>
@@ -200,46 +208,47 @@ game_code = """
     <div class="game-container">
         <canvas id="gameCanvas" width="800" height="300"></canvas>
         
-        <!-- 홈 화면 -->
         <div id="homeScreen" class="screen-overlay" style="display: flex;">
             <h1 style="margin-bottom: 20px;">🐱 미니 냥코대전쟁</h1>
             <div style="display: flex; gap: 15px;">
                 <button class="action-btn" onclick="openStageSelect()">⚔️ 전투개시</button>
                 <button class="action-btn" onclick="openDeckBuilder()" style="background-color: #2196f3; border-color: #0b7dda;">🎴 덱 편성</button>
-                <button class="action-btn" onclick="openGachaNotice()" style="background-color: #9c27b0; border-color: #7b1fa2;">🎰 뽑기</button>
+                <button class="action-btn" onclick="openGachaScreen()" style="background-color: #9c27b0; border-color: #7b1fa2;">🎰 뽑기</button>
             </div>
         </div>
 
-        <!-- 스테이지 선택 화면 -->
         <div id="stageSelectScreen" class="screen-overlay">
             <h2>🚩 스테이지 선택</h2>
-            <div style="display: flex; gap: 15px; margin: 15px 0;" id="stageBtnList">
-                <!-- 자바스크립트로 동적 생성 -->
-            </div>
+            <div style="display: flex; gap: 15px; margin: 15px 0;" id="stageBtnList"></div>
             <button class="action-btn" onclick="showHomeScreen()" style="background-color: #607d8b; border-color: #455a64;">🏠 홈으로</button>
         </div>
 
-        <!-- 덱 편성 화면 -->
         <div id="deckScreen" class="screen-overlay">
             <h3>🎴 덱 편성 (8칸)</h3>
-            <p style="font-size: 12px; color: #666; margin: 0 0 10px 0;">덱 슬롯 클릭 시 제거 / 하단 캐릭터 클릭 시 비어있는 슬롯에 추가</p>
+            <p style="font-size: 11px; color: #666; margin: 0 0 5px 0;">덱 슬롯 클릭 시 제거 / 하단 캐릭터 클릭 시 추가</p>
             <div class="deck-builder-box">
                 <div id="deckPreviewRow1" class="controls-row"></div>
                 <div id="deckPreviewRow2" class="controls-row"></div>
-                <div style="font-weight: bold; margin-top: 5px; font-size: 13px;">[ 보유 캐릭터 목록 ]</div>
+                <div style="font-weight: bold; margin-top: 5px; font-size: 12px;">[ 보유 캐릭터 목록 ]</div>
                 <div class="inventory-list" id="inventoryList"></div>
             </div>
-            <button class="action-btn" onclick="showHomeScreen()" style="background-color: #4caf50; border-color: #2e7d32; margin-top: 10px;">💾 저장 및 홈으로</button>
+            <button class="action-btn" onclick="showHomeScreen()" style="background-color: #4caf50; border-color: #2e7d32; margin-top: 8px; padding: 8px 16px;">💾 저장 및 홈으로</button>
         </div>
 
-        <!-- 중앙 오버레이 (승리/패배/시작) -->
+        <div id="gachaScreen" class="screen-overlay">
+            <h2>🎰 캐릭터 뽑기</h2>
+            <p style="margin: 5px 0; font-size: 14px;">필요 재화: 🎟️ 뽑기권 1장</p>
+            <div id="gachaResultDisplay" class="gacha-result">무엇이 나올까요?</div>
+            <button id="btnDrawGacha" class="action-btn" style="background-color: #9c27b0; border-color: #7b1fa2;" onclick="drawGacha()">🎰 1회 뽑기</button>
+            <button class="action-btn" onclick="showHomeScreen()" style="background-color: #607d8b; border-color: #455a64;">🏠 홈으로</button>
+        </div>
+
         <div id="centerOverlay" class="center-overlay" style="display: none;">
             <h2 id="overlayMsg" style="color: white; margin: 0 0 10px 0; font-size: 26px;"></h2>
-            <button id="btnRewardNext" class="action-btn" style="display: none;" onclick="handleVictoryComplete()">🎁 보상 확인 및 홈으로</button>
+            <button id="btnRewardNext" class="action-btn" style="display: none;" onclick="handleVictoryComplete()">🎁 결과 확인 및 홈으로</button>
             <button id="btnDefeatHome" class="action-btn" style="display: none; background-color: #607d8b;" onclick="showHomeScreen()">🏠 홈으로 돌아가기</button>
         </div>
 
-        <!-- 설정 모달 -->
         <div id="settingsModal" class="modal">
             <h2>⚙️ 설정</h2>
             <div style="margin: 15px 0;">
@@ -252,15 +261,13 @@ game_code = """
             </div>
         </div>
 
-        <!-- 캐릭터 획득 팝업 창 -->
         <div id="rewardModal" class="modal">
-            <h2>🎉 캐릭터 해금!</h2>
-            <p id="rewardText"><b>[🪓 도끼맨]</b>을(를) 획득했습니다!</p>
+            <h2 id="rewardTitle">🎉 보상 획득!</h2>
+            <p id="rewardText"></p>
             <button class="action-btn" style="background-color: #4caf50; border-color: #2e7d32; width: 100%; margin: 0;" onclick="closeRewardAndGoHome()">🏠 홈으로 이동</button>
         </div>
     </div>
 
-    <!-- 하단 덱 컨트롤 (4x2 슬롯) -->
     <div class="controls-container">
         <div class="controls-row" id="battleRow1"></div>
         <div class="controls-row" id="battleRow2"></div>
@@ -272,7 +279,8 @@ game_code = """
         const groundY = 220;
 
         let currentStage = 1;
-        let maxUnlockedStage = 1; // 해금된 최고 스테이지
+        let maxUnlockedStage = 1;
+        let gachaTickets = 0;
         let gameStarted = false;
         let gameOver = false;
         let gameWon = false;
@@ -282,7 +290,7 @@ game_code = """
         const maxMoney = 1000;
         const moneyIncomeRate = 0.5;
 
-        // Sound System (Web Audio API)
+        // Sound System
         let audioCtx = null;
         let masterGain = null;
         let bgmInterval = null;
@@ -355,18 +363,23 @@ game_code = """
 
         // 캐릭터 DB
         const characterDB = {
-            basic: { name: "🐱 기본", cost: 50,  cooldown: 500,  hp: 30, atk: 10, speed: 1.2, width: 25, height: 25, range: 5,   color: '#ffffff', atkCooldown: 60 },
-            tank:  { name: "🦒 탱커", cost: 75,  cooldown: 1000, hp: 60, atk: 7,  speed: 0.6, width: 20, height: 50, range: 5,   color: '#ffffff', atkCooldown: 80 },
-            axe:   { name: "🪓 도끼맨", cost: 100, cooldown: 2000, hp: 20, atk: 25, speed: 1.0, width: 25, height: 30, range: 125, color: '#ff7043', atkCooldown: 70 }
+            basic:  { name: "🐱 기본", cost: 50,  cooldown: 500,  hp: 30,  atk: 10, speed: 1.2, width: 25, height: 25, range: 5,   color: '#ffffff', atkCooldown: 60 },
+            tank:   { name: "🦒 탱커", cost: 75,  cooldown: 1000, hp: 60,  atk: 7,  speed: 0.6, width: 20, height: 50, range: 5,   color: '#ffffff', atkCooldown: 80 },
+            axe:    { name: "🪓 도끼맨", cost: 100, cooldown: 2000, hp: 20,  atk: 25, speed: 1.0, width: 25, height: 30, range: 125, color: '#ff7043', atkCooldown: 70 },
+            titan:  { name: "🗿 거신고양이", cost: 300, cooldown: 3000, hp: 70, atk: 20, speed: 0.7, width: 35, height: 60, range: 10,  color: '#b0bec5', atkCooldown: 75 },
+            gunner: { name: "🔫 총쏘는고양이", cost: 250, cooldown: 2000, hp: 17, atk: 4,  speed: 1.1, width: 25, height: 25, range: 140, color: '#ffee58', atkCooldown: 15 },
+            hellma: { name: "🔥 헬파이어야옹마", cost: 800, cooldown: 5000, hp: 100, atk: 80, speed: 2.2, width: 40, height: 45, range: 15,  color: '#b71c1c', atkCooldown: 30 }
         };
 
-        let unlockedCharacters = ['basic', 'tank']; // 보유한 캐릭터 목록
-        let currentDeck = ['basic', 'tank', null, null, null, null, null, null]; // 8칸 덱
+        let unlockedCharacters = ['basic', 'tank'];
+        let currentDeck = ['basic', 'tank', null, null, null, null, null, null];
 
+        // 적군 DB
         const enemyUnitConfigs = {
-            doge:  { hp: 20,  atk: 8,  speed: 0.9, width: 25, height: 25, color: '#ffcc80', atkCooldown: 60 },
-            snake: { hp: 17,  atk: 11, speed: 1.4, width: 35, height: 15, color: '#a5d6a7', atkCooldown: 50 },
-            hippo: { hp: 300, atk: 20, speed: 0.5, width: 50, height: 40, color: '#f8bbd0', atkCooldown: 45 }
+            doge:     { hp: 20,  atk: 8,  speed: 0.9, width: 25, height: 25, color: '#ffcc80', atkCooldown: 60 },
+            snake:    { hp: 17,  atk: 11, speed: 1.4, width: 35, height: 15, color: '#a5d6a7', atkCooldown: 50 },
+            hippo:    { hp: 300, atk: 20, speed: 0.5, width: 50, height: 40, color: '#f8bbd0', atkCooldown: 45 },
+            stickmen: { hp: 25,  atk: 8,  speed: 1.3, width: 20, height: 20, color: '#333333', atkCooldown: 20 }
         };
 
         const cooldownState = Array(8).fill(null).map(() => ({ ready: true, remaining: 0, total: 1000 }));
@@ -381,11 +394,11 @@ game_code = """
         let bossSpawned = false;
         let waveEffect = { active: false, radius: 0, maxRadius: 300 };
 
-        // 홈/화면 전환 로직
         function hideAllScreens() {
             document.getElementById("homeScreen").style.display = "none";
             document.getElementById("stageSelectScreen").style.display = "none";
             document.getElementById("deckScreen").style.display = "none";
+            document.getElementById("gachaScreen").style.display = "none";
             document.getElementById("centerOverlay").style.display = "none";
             document.getElementById("settingsModal").style.display = "none";
             document.getElementById("rewardModal").style.display = "none";
@@ -397,6 +410,7 @@ game_code = """
             isPaused = true;
             document.getElementById("homeScreen").style.display = "flex";
             document.getElementById("stageTxt").innerText = "🚩 대기 중";
+            document.getElementById("ticketTxt").innerText = gachaTickets;
             renderBattleDeckSlots();
         }
 
@@ -404,7 +418,7 @@ game_code = """
             hideAllScreens();
             const container = document.getElementById("stageBtnList");
             container.innerHTML = "";
-            for (let i = 1; i <= 2; i++) {
+            for (let i = 1; i <= 3; i++) {
                 const btn = document.createElement("button");
                 btn.className = "action-btn" + (i <= maxUnlockedStage ? "" : " disabled");
                 btn.innerText = "Stage " + i + (i <= maxUnlockedStage ? " ⚔️" : " 🔒");
@@ -422,11 +436,41 @@ game_code = """
             document.getElementById("deckScreen").style.display = "flex";
         }
 
-        function openGachaNotice() {
-            alert("🎰 뽑기 기능은 준비 중입니다!");
+        function openGachaScreen() {
+            hideAllScreens();
+            document.getElementById("ticketTxt").innerText = gachaTickets;
+            document.getElementById("gachaResultDisplay").innerText = "무엇이 나올까요?";
+            document.getElementById("gachaScreen").style.display = "flex";
         }
 
-        // 덱 편성 UI 처리
+        // 뽑기 로직
+        function drawGacha() {
+            if (gachaTickets < 1) {
+                alert("🎟️ 뽑기권이 부족합니다!");
+                return;
+            }
+            gachaTickets--;
+            document.getElementById("ticketTxt").innerText = gachaTickets;
+
+            const rand = Math.random();
+            let pulledKey = "";
+            if (rand < 0.45) {
+                pulledKey = "titan";
+            } else if (rand < 0.90) {
+                pulledKey = "gunner";
+            } else {
+                pulledKey = "hellma";
+            }
+
+            const charInfo = characterDB[pulledKey];
+            if (!unlockedCharacters.includes(pulledKey)) {
+                unlockedCharacters.push(pulledKey);
+                document.getElementById("gachaResultDisplay").innerText = `🎉 NEW! [${charInfo.name}] 획득!`;
+            } else {
+                document.getElementById("gachaResultDisplay").innerText = `✨ [${charInfo.name}] 중복 획득!`;
+            }
+        }
+
         function renderDeckBuilder() {
             const row1 = document.getElementById("deckPreviewRow1");
             const row2 = document.getElementById("deckPreviewRow2");
@@ -464,7 +508,7 @@ game_code = """
                 currentDeck[emptyIdx] = charKey;
                 renderDeckBuilder();
             } else {
-                alert("덱이 가득 찼습니다! (최대 8개)");
+                alert("덱이 가득 찼습니다!");
             }
         }
 
@@ -473,7 +517,6 @@ game_code = """
             renderDeckBuilder();
         }
 
-        // 전투 하단 UI 레이아웃 동적 생성 (4x2)
         function renderBattleDeckSlots() {
             const row1 = document.getElementById("battleRow1");
             const row2 = document.getElementById("battleRow2");
@@ -571,6 +614,7 @@ game_code = """
             const config = enemyUnitConfigs.hippo;
 
             enemyUnits.push({
+                type: 'hippo',
                 x: enemyCastle.x + enemyCastle.width,
                 y: groundY - config.height,
                 width: config.width,
@@ -600,28 +644,40 @@ game_code = """
             }
 
             const now = Date.now();
-            if (now - lastEnemySpawnTime > Math.random() * 1500 + 2500) {
-                lastEnemySpawnTime = now;
-                const spawnCount = Math.random() < 0.2 ? 2 : 1;
-                for (let i = 0; i < spawnCount; i++) {
-                    const isDoge = Math.random() < 0.6;
-                    const config = isDoge ? enemyUnitConfigs.doge : enemyUnitConfigs.snake;
+            let spawnDelay = Math.random() * 1500 + 2500;
+            if (currentStage === 3) spawnDelay = Math.random() * 600 + 800; // 매우 빠른 스폰
 
-                    enemyUnits.push({
-                        x: enemyCastle.x + enemyCastle.width + (i * 20),
-                        y: groundY - config.height,
-                        width: config.width,
-                        height: config.height,
-                        speed: config.speed,
-                        hp: config.hp,
-                        maxHp: config.hp,
-                        atk: config.atk,
-                        color: config.color,
-                        atkTimer: 0,
-                        atkCooldown: config.atkCooldown,
-                        isBoss: false
-                    });
+            if (now - lastEnemySpawnTime > spawnDelay) {
+                lastEnemySpawnTime = now;
+
+                let enemyType = 'doge';
+                if (currentStage === 1) {
+                    enemyType = Math.random() < 0.6 ? 'doge' : 'snake';
+                } else if (currentStage === 2) {
+                    enemyType = Math.random() < 0.5 ? 'doge' : 'snake';
+                } else if (currentStage === 3) {
+                    const r = Math.random();
+                    if (r < 0.5) enemyType = 'stickmen';
+                    else if (r < 0.75) enemyType = 'snake';
+                    else enemyType = 'doge';
                 }
+
+                const config = enemyUnitConfigs[enemyType];
+                enemyUnits.push({
+                    type: enemyType,
+                    x: enemyCastle.x + enemyCastle.width,
+                    y: groundY - config.height,
+                    width: config.width,
+                    height: config.height,
+                    speed: config.speed,
+                    hp: config.hp,
+                    maxHp: config.hp,
+                    atk: config.atk,
+                    color: config.color,
+                    atkTimer: 0,
+                    atkCooldown: config.atkCooldown,
+                    isBoss: false
+                });
             }
         }
 
@@ -636,19 +692,32 @@ game_code = """
             document.getElementById("settingsModal").style.display = "none";
         }
 
-        function goToHomeFromSettings() {
-            showHomeScreen();
-        }
+        function goToHomeFromSettings() { showHomeScreen(); }
 
         function handleVictoryComplete() {
             document.getElementById("centerOverlay").style.display = "none";
+            let rewardMsg = "";
+
             if (currentStage === 1 && !unlockedCharacters.includes('axe')) {
                 unlockedCharacters.push('axe');
                 maxUnlockedStage = Math.max(maxUnlockedStage, 2);
-                document.getElementById("rewardModal").style.display = "block";
+                rewardMsg = "<b>[🪓 도끼맨]</b>을 해금했습니다!";
+            } else if (currentStage === 2) {
+                maxUnlockedStage = Math.max(maxUnlockedStage, 3);
+                rewardMsg = "<b>Stage 3</b>이 해금되었습니다!";
+            } else if (currentStage === 3) {
+                if (Math.random() < 0.30) {
+                    gachaTickets += 2;
+                    rewardMsg = "🎉 축하합니다! <b>🎟️ 뽑기권 2장</b>을 획득했습니다!";
+                } else {
+                    rewardMsg = "스테이지 클리어! (뽑기권 획득 실패)";
+                }
             } else {
-                showHomeScreen();
+                rewardMsg = "스테이지를 클리어했습니다!";
             }
+
+            document.getElementById("rewardText").innerHTML = rewardMsg;
+            document.getElementById("rewardModal").style.display = "block";
         }
 
         function closeRewardAndGoHome() {
@@ -774,6 +843,7 @@ game_code = """
         function render() {
             ctx.clearRect(0, 0, canvas.width, canvas.height);
 
+            // 바닥
             ctx.fillStyle = "#81c784";
             ctx.fillRect(0, groundY, canvas.width, canvas.height - groundY);
             ctx.strokeStyle = "#388e3c";
@@ -783,6 +853,7 @@ game_code = """
             ctx.lineTo(canvas.width, groundY);
             ctx.stroke();
 
+            // 적군 성
             ctx.fillStyle = "#ef5350";
             ctx.fillRect(enemyCastle.x, enemyCastle.y, enemyCastle.width, enemyCastle.height);
             ctx.fillStyle = "#e53935";
@@ -793,6 +864,7 @@ game_code = """
             ctx.closePath();
             ctx.fill();
 
+            // 아군 성
             ctx.fillStyle = "#42a5f5";
             ctx.fillRect(playerCastle.x, playerCastle.y, playerCastle.width, playerCastle.height);
             ctx.fillStyle = "#1e88e5";
@@ -817,6 +889,7 @@ game_code = """
             ctx.fillRect(enemyCastle.x, enemyCastle.y - 35, enemyCastle.width * (enemyCastle.hp / enemyCastle.maxHp), 6);
             ctx.fillRect(playerCastle.x, playerCastle.y - 35, playerCastle.width * (playerCastle.hp / playerCastle.maxHp), 6);
 
+            // 아군 그린기
             playerUnits.forEach(unit => {
                 ctx.fillStyle = unit.color;
                 ctx.fillRect(unit.x, unit.y, unit.width, unit.height);
@@ -824,28 +897,34 @@ game_code = """
                 ctx.lineWidth = 2;
                 ctx.strokeRect(unit.x, unit.y, unit.width, unit.height);
 
+                // 고양이 귀
                 ctx.fillStyle = "#ffffff";
                 ctx.beginPath();
                 ctx.moveTo(unit.x, unit.y);
                 ctx.lineTo(unit.x + 4, unit.y - 6);
                 ctx.lineTo(unit.x + 8, unit.y);
-                ctx.fill();
-                ctx.stroke();
-
+                ctx.fill(); ctx.stroke();
                 ctx.beginPath();
                 ctx.moveTo(unit.x + unit.width - 8, unit.y);
                 ctx.lineTo(unit.x + unit.width - 4, unit.y - 6);
                 ctx.lineTo(unit.x + unit.width, unit.y);
-                ctx.fill();
-                ctx.stroke();
+                ctx.fill(); ctx.stroke();
 
-                if (unit.type === 'axe' && unit.atkTimer > unit.atkCooldown - 15) {
-                    ctx.strokeStyle = "#d84315";
-                    ctx.lineWidth = 3;
+                // 총쏘는 고양이 권총
+                if (unit.type === 'gunner') {
+                    ctx.fillStyle = "#333333";
+                    ctx.fillRect(unit.x - 10, unit.y + 10, 10, 4);
+                    ctx.fillRect(unit.x - 4, unit.y + 14, 4, 6);
+                }
+
+                // 헬파이어 야옹마 도깨비불 방망이
+                if (unit.type === 'hellma') {
+                    ctx.fillStyle = "#3e2723";
+                    ctx.fillRect(unit.x - 8, unit.y + 5, 8, 30);
+                    ctx.fillStyle = "#ff3d00";
                     ctx.beginPath();
-                    ctx.moveTo(unit.x, unit.y + 10);
-                    ctx.lineTo(unit.x - unit.range, unit.y + 10);
-                    ctx.stroke();
+                    ctx.arc(unit.x - 4, unit.y + 2, 6, 0, Math.PI * 2);
+                    ctx.fill();
                 }
 
                 ctx.fillStyle = "#ff5252";
@@ -854,6 +933,7 @@ game_code = """
                 ctx.fillRect(unit.x, unit.y - 8, unit.width * (unit.hp / unit.maxHp), 4);
             });
 
+            // 적군 그리기
             enemyUnits.forEach(unit => {
                 ctx.fillStyle = unit.color;
                 ctx.fillRect(unit.x, unit.y, unit.width, unit.height);
@@ -861,11 +941,23 @@ game_code = """
                 ctx.lineWidth = 2;
                 ctx.strokeRect(unit.x, unit.y, unit.width, unit.height);
 
+                // 졸라맨 3명 연출
+                if (unit.type === 'stickmen') {
+                    ctx.strokeStyle = "#ffffff";
+                    ctx.lineWidth = 1;
+                    for (let s = 0; s < 3; s++) {
+                        let sx = unit.x + 4 + s * 6;
+                        ctx.beginPath();
+                        ctx.arc(sx, unit.y + 4, 2, 0, Math.PI * 2);
+                        ctx.moveTo(sx, unit.y + 6); ctx.lineTo(sx, unit.y + 14);
+                        ctx.stroke();
+                    }
+                }
+
                 if (unit.isBoss) {
                     ctx.fillStyle = "#d81b60";
                     const mouthOpen = (unit.atkTimer % 10 > 5) ? 12 : 4;
                     ctx.fillRect(unit.x + unit.width - 5, unit.y + 15, 10, mouthOpen);
-                    ctx.strokeRect(unit.x + unit.width - 5, unit.y + 15, 10, mouthOpen);
                 }
 
                 ctx.fillStyle = "#ff5252";
