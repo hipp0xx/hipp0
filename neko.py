@@ -50,156 +50,12 @@ game_code = """
             cursor: pointer;
             font-weight: bold;
         }
-        .settings-btn:hover {
-            background-color: #455a64;
-        }
-        .money-display {
-            font-size: 18px;
-            font-weight: bold;
-            color: #2e7d32;
-        }
-        .stage-title {
-            font-size: 18px;
-            font-weight: bold;
-            color: #1565c0;
-        }
+        .settings-btn:hover { background-color: #455a64; }
+        .money-display { font-size: 18px; font-weight: bold; color: #2e7d32; }
+        .stage-title { font-size: 18px; font-weight: bold; color: #1565c0; }
 
-        /* 캔버스 중앙 오버레이 */
-        .center-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 800px;
-            height: 300px;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            background-color: rgba(0, 0, 0, 0.4);
-            z-index: 5;
-        }
-
-        .action-btn {
-            padding: 12px 24px;
-            font-size: 16px;
-            font-weight: bold;
-            color: #fff;
-            background-color: #ff9800;
-            border: 2px solid #e65100;
-            border-radius: 8px;
-            cursor: pointer;
-            margin-top: 15px;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-        }
-        .action-btn:hover {
-            background-color: #f57c00;
-        }
-        .next-btn {
-            background-color: #4caf50;
-            border-color: #2e7d32;
-        }
-
-        .controls {
-            display: flex;
-            gap: 12px;
-            margin-top: 5px;
-            justify-content: center;
-            width: 800px;
-        }
-        .unit-slot {
-            position: relative;
-            width: 75px;
-            height: 75px;
-            background-color: #ffffff;
-            border: 2px solid #333;
-            border-radius: 8px;
-            cursor: pointer;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            font-weight: bold;
-            user-select: none;
-            overflow: hidden;
-            box-sizing: border-box;
-        }
-        .unit-slot.disabled {
-            cursor: not-allowed;
-            background-color: #e0e0e0;
-            color: #888;
-        }
-        .unit-slot.empty {
-            background-color: #eceff1;
-            border: 2px dashed #b0bec5;
-            cursor: default;
-            color: #b0bec5;
-        }
-        
-        .cooldown-overlay {
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.55);
-            pointer-events: none;
-            transition: height 0.05s linear;
-        }
-        .cost-tag {
-            font-size: 11px;
-            color: #d32f2f;
-            margin-top: 2px;
-        }
-
-        /* 팝업 모달공통 */
-        .modal {
-            display: none;
-            position: absolute;
-            top: 25px;
-            left: 200px;
-            width: 400px;
-            background: #ffffff;
-            border: 3px solid #333;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-            text-align: center;
-            padding: 20px;
-            z-index: 10;
-            box-sizing: border-box;
-        }
-        .modal h2 {
-            margin: 0 0 15px 0;
-            color: #333;
-            font-size: 20px;
-        }
-        .setting-item {
-            margin: 15px 0;
-            display: flex;
-            flex-direction: column;
-            gap: 8px;
-            align-items: center;
-        }
-        .setting-btn-group {
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-            width: 100%;
-        }
-        .modal-btn {
-            padding: 10px;
-            font-size: 14px;
-            font-weight: bold;
-            border-radius: 6px;
-            border: none;
-            cursor: pointer;
-            color: white;
-        }
-        .btn-resume { background-color: #4caf50; }
-        .btn-home { background-color: #2196f3; }
-        
-        /* 홈 화면 오버레이 */
-        .home-screen {
+        /* 화면 오버레이 공통 (홈, 스테이지 선택, 덱편성 등) */
+        .screen-overlay {
             display: none;
             position: absolute;
             top: 0;
@@ -214,6 +70,122 @@ game_code = """
             border: 2px solid #333;
             box-sizing: border-box;
         }
+        
+        .center-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 800px;
+            height: 300px;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            background-color: rgba(0, 0, 0, 0.5);
+            z-index: 5;
+        }
+
+        .action-btn {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #fff;
+            background-color: #ff9800;
+            border: 2px solid #e65100;
+            border-radius: 8px;
+            cursor: pointer;
+            margin: 5px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.2);
+            min-width: 160px;
+        }
+        .action-btn:hover { background-color: #f57c00; }
+        .action-btn.disabled { background-color: #b0bec5; border-color: #78909c; cursor: not-allowed; }
+
+        /* 하단 8칸 덱 컨트롤 (4x2) */
+        .controls-container {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: 5px;
+            align-items: center;
+            width: 800px;
+        }
+        .controls-row {
+            display: flex;
+            gap: 10px;
+        }
+        .unit-slot {
+            position: relative;
+            width: 70px;
+            height: 55px;
+            background-color: #ffffff;
+            border: 2px solid #333;
+            border-radius: 8px;
+            cursor: pointer;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-size: 11px;
+            font-weight: bold;
+            user-select: none;
+            overflow: hidden;
+            box-sizing: border-box;
+        }
+        .unit-slot.disabled { cursor: not-allowed; background-color: #e0e0e0; color: #888; }
+        .unit-slot.empty { background-color: #eceff1; border: 2px dashed #b0bec5; cursor: default; color: #b0bec5; }
+        
+        .cooldown-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.55);
+            pointer-events: none;
+            transition: height 0.05s linear;
+        }
+        .cost-tag { font-size: 10px; color: #d32f2f; margin-top: 2px; }
+
+        /* 팝업 모달 */
+        .modal {
+            display: none;
+            position: absolute;
+            top: 25px;
+            left: 200px;
+            width: 400px;
+            background: #ffffff;
+            border: 3px solid #333;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            text-align: center;
+            padding: 20px;
+            z-index: 30;
+            box-sizing: border-box;
+        }
+        
+        /* 덱 편성 UI 전용 */
+        .deck-builder-box {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+        .inventory-list {
+            display: flex;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .inv-item {
+            padding: 8px 12px;
+            background: #fff;
+            border: 2px solid #333;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+        }
+        .inv-item.selected { opacity: 0.4; cursor: default; }
     </style>
 </head>
 <body>
@@ -222,78 +194,85 @@ game_code = """
             <button class="settings-btn" onclick="openSettings()">⚙️ 설정</button>
             <div class="money-display">💰 소지금: <span id="moneyTxt">0</span>원 / 1000원</div>
         </div>
-        <div class="stage-title" id="stageTxt">🚩 Stage 1</div>
+        <div class="stage-title" id="stageTxt">🚩 대기 중</div>
     </div>
 
     <div class="game-container">
         <canvas id="gameCanvas" width="800" height="300"></canvas>
         
-        <!-- 중앙 게임시작 오버레이 -->
-        <div id="centerOverlay" class="center-overlay">
-            <h2 id="overlayMsg" style="color: white; margin: 0; font-size: 24px;">⚔️ 미니 냥코대전쟁</h2>
-            <button id="btnStartCenter" class="action-btn" onclick="startGame()">⚔️ 게임 시작</button>
-            <button id="btnNextCenter" class="action-btn next-btn" style="display: none;" onclick="showRewardModal()">➡️ 다음 스테이지</button>
+        <!-- 홈 화면 -->
+        <div id="homeScreen" class="screen-overlay" style="display: flex;">
+            <h1 style="margin-bottom: 20px;">🐱 미니 냥코대전쟁</h1>
+            <div style="display: flex; gap: 15px;">
+                <button class="action-btn" onclick="openStageSelect()">⚔️ 전투개시</button>
+                <button class="action-btn" onclick="openDeckBuilder()" style="background-color: #2196f3; border-color: #0b7dda;">🎴 덱 편성</button>
+                <button class="action-btn" onclick="openGachaNotice()" style="background-color: #9c27b0; border-color: #7b1fa2;">🎰 뽑기</button>
+            </div>
+        </div>
+
+        <!-- 스테이지 선택 화면 -->
+        <div id="stageSelectScreen" class="screen-overlay">
+            <h2>🚩 스테이지 선택</h2>
+            <div style="display: flex; gap: 15px; margin: 15px 0;" id="stageBtnList">
+                <!-- 자바스크립트로 동적 생성 -->
+            </div>
+            <button class="action-btn" onclick="showHomeScreen()" style="background-color: #607d8b; border-color: #455a64;">🏠 홈으로</button>
+        </div>
+
+        <!-- 덱 편성 화면 -->
+        <div id="deckScreen" class="screen-overlay">
+            <h3>🎴 덱 편성 (8칸)</h3>
+            <p style="font-size: 12px; color: #666; margin: 0 0 10px 0;">덱 슬롯 클릭 시 제거 / 하단 캐릭터 클릭 시 비어있는 슬롯에 추가</p>
+            <div class="deck-builder-box">
+                <div id="deckPreviewRow1" class="controls-row"></div>
+                <div id="deckPreviewRow2" class="controls-row"></div>
+                <div style="font-weight: bold; margin-top: 5px; font-size: 13px;">[ 보유 캐릭터 목록 ]</div>
+                <div class="inventory-list" id="inventoryList"></div>
+            </div>
+            <button class="action-btn" onclick="showHomeScreen()" style="background-color: #4caf50; border-color: #2e7d32; margin-top: 10px;">💾 저장 및 홈으로</button>
+        </div>
+
+        <!-- 중앙 오버레이 (승리/패배/시작) -->
+        <div id="centerOverlay" class="center-overlay" style="display: none;">
+            <h2 id="overlayMsg" style="color: white; margin: 0 0 10px 0; font-size: 26px;"></h2>
+            <button id="btnRewardNext" class="action-btn" style="display: none;" onclick="handleVictoryComplete()">🎁 보상 확인 및 홈으로</button>
+            <button id="btnDefeatHome" class="action-btn" style="display: none; background-color: #607d8b;" onclick="showHomeScreen()">🏠 홈으로 돌아가기</button>
         </div>
 
         <!-- 설정 모달 -->
         <div id="settingsModal" class="modal">
             <h2>⚙️ 설정</h2>
-            <div class="setting-item">
-                <label for="volumeRange"><b>🔊 소리 조절</b></label>
+            <div style="margin: 15px 0;">
+                <label for="volumeRange"><b>🔊 소리 조절</b></label><br><br>
                 <input type="range" id="volumeRange" min="0" max="1" step="0.05" value="0.3" oninput="changeVolume(this.value)">
             </div>
-            <div class="setting-btn-group">
-                <button class="modal-btn btn-resume" onclick="closeSettings()">▶️ 계속하기 (다시시작)</button>
-                <button class="modal-btn btn-home" onclick="goToHome()">🏠 홈으로</button>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <button class="action-btn" style="background-color: #4caf50; width: 100%; margin: 0;" onclick="closeSettings()">▶️ 계속하기</button>
+                <button class="action-btn" style="background-color: #2196f3; width: 100%; margin: 0;" onclick="goToHomeFromSettings()">🏠 홈으로</button>
             </div>
         </div>
 
         <!-- 캐릭터 획득 팝업 창 -->
         <div id="rewardModal" class="modal">
             <h2>🎉 캐릭터 해금!</h2>
-            <p><b>[🪓 도끼맨]</b>을(를) 획득했습니다!<br>사거리가 긴 신규 원거리 딜러 캐릭터입니다.</p>
-            <button class="action-btn next-btn" onclick="closeModalAndStartStage2()">➡️ Stage 2 시작하기</button>
-        </div>
-
-        <!-- 홈 화면 창 -->
-        <div id="homeScreen" class="home-screen">
-            <h1>🐱 미니 냥코대전쟁 홈</h1>
-            <p style="color: #666;">(홈 화면 기능은 추후 업데이트 예정입니다)</p>
-            <button class="action-btn" onclick="leaveHomeToStage()">🎮 스테이지 선택으로 이동</button>
+            <p id="rewardText"><b>[🪓 도끼맨]</b>을(를) 획득했습니다!</p>
+            <button class="action-btn" style="background-color: #4caf50; border-color: #2e7d32; width: 100%; margin: 0;" onclick="closeRewardAndGoHome()">🏠 홈으로 이동</button>
         </div>
     </div>
 
-    <div class="controls">
-        <div id="slotBasic" class="unit-slot disabled" onclick="spawnPlayerUnit('basic')">
-            <div>🐱 기본</div>
-            <div class="cost-tag">50원</div>
-            <div id="cdBasic" class="cooldown-overlay" style="height: 0%;"></div>
-        </div>
-
-        <div id="slotTank" class="unit-slot disabled" onclick="spawnPlayerUnit('tank')">
-            <div>🦒 탱커</div>
-            <div class="cost-tag">75원</div>
-            <div id="cdTank" class="cooldown-overlay" style="height: 0%;"></div>
-        </div>
-
-        <div id="slotAxe" class="unit-slot disabled" style="display: none;" onclick="spawnPlayerUnit('axe')">
-            <div>🪓 도끼맨</div>
-            <div class="cost-tag">100원</div>
-            <div id="cdAxe" class="cooldown-overlay" style="height: 0%;"></div>
-        </div>
-
-        <div id="slotEmpty4" class="unit-slot empty">
-            <div>EMPTY</div>
-        </div>
+    <!-- 하단 덱 컨트롤 (4x2 슬롯) -->
+    <div class="controls-container">
+        <div class="controls-row" id="battleRow1"></div>
+        <div class="controls-row" id="battleRow2"></div>
     </div>
 
     <script>
         const canvas = document.getElementById("gameCanvas");
         const ctx = canvas.getContext("2d");
-
         const groundY = 220;
 
         let currentStage = 1;
+        let maxUnlockedStage = 1; // 해금된 최고 스테이지
         let gameStarted = false;
         let gameOver = false;
         let gameWon = false;
@@ -321,9 +300,7 @@ game_code = """
 
         function changeVolume(val) {
             masterVolume = parseFloat(val);
-            if (masterGain) {
-                masterGain.gain.value = masterVolume;
-            }
+            if (masterGain) masterGain.gain.value = masterVolume;
         }
 
         function playSpawnSound() {
@@ -359,7 +336,7 @@ game_code = """
         function startBGM() {
             if (bgmInterval) return;
             let noteIndex = 0;
-            const notes = [261.63, 329.63, 392.00, 523.25]; // C E G C
+            const notes = [261.63, 329.63, 392.00, 523.25];
             bgmInterval = setInterval(() => {
                 if (!gameStarted || isPaused || gameOver || !audioCtx) return;
                 const osc = audioCtx.createOscillator();
@@ -376,11 +353,15 @@ game_code = """
             }, 300);
         }
 
-        const playerUnitConfigs = {
-            basic: { cost: 50,  cooldown: 500,  hp: 30, atk: 10, speed: 1.2, width: 25, height: 25, range: 5,   color: '#ffffff', atkCooldown: 60 },
-            tank:  { cost: 75,  cooldown: 1000, hp: 60, atk: 7,  speed: 0.6, width: 20, height: 50, range: 5,   color: '#ffffff', atkCooldown: 80 },
-            axe:   { cost: 100, cooldown: 2000, hp: 20, atk: 25, speed: 1.0, width: 25, height: 30, range: 125, color: '#ff7043', atkCooldown: 70 }
+        // 캐릭터 DB
+        const characterDB = {
+            basic: { name: "🐱 기본", cost: 50,  cooldown: 500,  hp: 30, atk: 10, speed: 1.2, width: 25, height: 25, range: 5,   color: '#ffffff', atkCooldown: 60 },
+            tank:  { name: "🦒 탱커", cost: 75,  cooldown: 1000, hp: 60, atk: 7,  speed: 0.6, width: 20, height: 50, range: 5,   color: '#ffffff', atkCooldown: 80 },
+            axe:   { name: "🪓 도끼맨", cost: 100, cooldown: 2000, hp: 20, atk: 25, speed: 1.0, width: 25, height: 30, range: 125, color: '#ff7043', atkCooldown: 70 }
         };
+
+        let unlockedCharacters = ['basic', 'tank']; // 보유한 캐릭터 목록
+        let currentDeck = ['basic', 'tank', null, null, null, null, null, null]; // 8칸 덱
 
         const enemyUnitConfigs = {
             doge:  { hp: 20,  atk: 8,  speed: 0.9, width: 25, height: 25, color: '#ffcc80', atkCooldown: 60 },
@@ -388,11 +369,7 @@ game_code = """
             hippo: { hp: 300, atk: 20, speed: 0.5, width: 50, height: 40, color: '#f8bbd0', atkCooldown: 45 }
         };
 
-        const cooldownState = {
-            basic: { ready: true, remaining: 0, total: 500 },
-            tank:  { ready: true, remaining: 0, total: 1000 },
-            axe:   { ready: true, remaining: 0, total: 2000 }
-        };
+        const cooldownState = Array(8).fill(null).map(() => ({ ready: true, remaining: 0, total: 1000 }));
 
         let playerCastle = { x: 690, y: groundY - 80, width: 60, height: 80, hp: 200, maxHp: 200 };
         let enemyCastle = { x: 50, y: groundY - 80, width: 60, height: 80, hp: 200, maxHp: 200 };
@@ -404,31 +381,127 @@ game_code = """
         let bossSpawned = false;
         let waveEffect = { active: false, radius: 0, maxRadius: 300 };
 
-        function openSettings() {
-            initAudio();
-            isPaused = true;
-            document.getElementById("settingsModal").style.display = "block";
-        }
-
-        function closeSettings() {
-            isPaused = false;
-            document.getElementById("settingsModal").style.display = "none";
-        }
-
-        function goToHome() {
-            document.getElementById("settingsModal").style.display = "none";
-            document.getElementById("homeScreen").style.display = "flex";
-            isPaused = true;
-        }
-
-        function leaveHomeToStage() {
+        // 홈/화면 전환 로직
+        function hideAllScreens() {
             document.getElementById("homeScreen").style.display = "none";
-            initStage(currentStage);
+            document.getElementById("stageSelectScreen").style.display = "none";
+            document.getElementById("deckScreen").style.display = "none";
+            document.getElementById("centerOverlay").style.display = "none";
+            document.getElementById("settingsModal").style.display = "none";
+            document.getElementById("rewardModal").style.display = "none";
         }
 
-        function initStage(stageNum) {
-            currentStage = stageNum;
+        function showHomeScreen() {
+            hideAllScreens();
             gameStarted = false;
+            isPaused = true;
+            document.getElementById("homeScreen").style.display = "flex";
+            document.getElementById("stageTxt").innerText = "🚩 대기 중";
+            renderBattleDeckSlots();
+        }
+
+        function openStageSelect() {
+            hideAllScreens();
+            const container = document.getElementById("stageBtnList");
+            container.innerHTML = "";
+            for (let i = 1; i <= 2; i++) {
+                const btn = document.createElement("button");
+                btn.className = "action-btn" + (i <= maxUnlockedStage ? "" : " disabled");
+                btn.innerText = "Stage " + i + (i <= maxUnlockedStage ? " ⚔️" : " 🔒");
+                if (i <= maxUnlockedStage) {
+                    btn.onclick = () => startBattleStage(i);
+                }
+                container.appendChild(btn);
+            }
+            document.getElementById("stageSelectScreen").style.display = "flex";
+        }
+
+        function openDeckBuilder() {
+            hideAllScreens();
+            renderDeckBuilder();
+            document.getElementById("deckScreen").style.display = "flex";
+        }
+
+        function openGachaNotice() {
+            alert("🎰 뽑기 기능은 준비 중입니다!");
+        }
+
+        // 덱 편성 UI 처리
+        function renderDeckBuilder() {
+            const row1 = document.getElementById("deckPreviewRow1");
+            const row2 = document.getElementById("deckPreviewRow2");
+            row1.innerHTML = ""; row2.innerHTML = "";
+
+            for (let i = 0; i < 8; i++) {
+                const charKey = currentDeck[i];
+                const slot = document.createElement("div");
+                slot.className = "unit-slot" + (charKey ? "" : " empty");
+                if (charKey) {
+                    slot.innerHTML = `<div>${characterDB[charKey].name}</div><div class="cost-tag">${characterDB[charKey].cost}원</div>`;
+                    slot.onclick = () => removeFromDeck(i);
+                } else {
+                    slot.innerText = "EMPTY";
+                }
+                if (i < 4) row1.appendChild(slot);
+                else row2.appendChild(slot);
+            }
+
+            const invList = document.getElementById("inventoryList");
+            invList.innerHTML = "";
+            unlockedCharacters.forEach(key => {
+                const inUse = currentDeck.includes(key);
+                const item = document.createElement("div");
+                item.className = "inv-item" + (inUse ? " selected" : "");
+                item.innerText = characterDB[key].name;
+                if (!inUse) item.onclick = () => addToDeck(key);
+                invList.appendChild(item);
+            });
+        }
+
+        function addToDeck(charKey) {
+            const emptyIdx = currentDeck.indexOf(null);
+            if (emptyIdx !== -1) {
+                currentDeck[emptyIdx] = charKey;
+                renderDeckBuilder();
+            } else {
+                alert("덱이 가득 찼습니다! (최대 8개)");
+            }
+        }
+
+        function removeFromDeck(index) {
+            currentDeck[index] = null;
+            renderDeckBuilder();
+        }
+
+        // 전투 하단 UI 레이아웃 동적 생성 (4x2)
+        function renderBattleDeckSlots() {
+            const row1 = document.getElementById("battleRow1");
+            const row2 = document.getElementById("battleRow2");
+            row1.innerHTML = ""; row2.innerHTML = "";
+
+            for (let i = 0; i < 8; i++) {
+                const charKey = currentDeck[i];
+                const slot = document.createElement("div");
+                slot.id = "bSlot_" + i;
+                if (charKey) {
+                    const cfg = characterDB[charKey];
+                    slot.className = "unit-slot disabled";
+                    slot.innerHTML = `<div>${cfg.name}</div><div class="cost-tag">${cfg.cost}원</div><div id="cd_${i}" class="cooldown-overlay" style="height: 0%;"></div>`;
+                    slot.onclick = () => spawnPlayerUnit(i);
+                } else {
+                    slot.className = "unit-slot empty";
+                    slot.innerText = "EMPTY";
+                }
+                if (i < 4) row1.appendChild(slot);
+                else row2.appendChild(slot);
+            }
+        }
+
+        function startBattleStage(stageNum) {
+            initAudio();
+            hideAllScreens();
+            currentStage = stageNum;
+            gameStarted = true;
             gameOver = false;
             gameWon = false;
             isPaused = false;
@@ -437,75 +510,46 @@ game_code = """
 
             playerCastle.hp = 200;
             enemyCastle.hp = 200;
-
             playerUnits = [];
             enemyUnits = [];
 
             document.getElementById("stageTxt").innerText = "🚩 Stage " + currentStage;
-            document.getElementById("centerOverlay").style.display = "flex";
-            document.getElementById("overlayMsg").innerText = "🚩 Stage " + currentStage;
-            document.getElementById("btnStartCenter").style.display = "inline-block";
-            document.getElementById("btnNextCenter").style.display = "none";
-
-            if (currentStage >= 2) {
-                document.getElementById("slotAxe").style.display = "flex";
-            } else {
-                document.getElementById("slotAxe").style.display = "none";
-            }
-        }
-
-        function startGame() {
-            initAudio();
-            if (gameStarted) return;
-            gameStarted = true;
-            isPaused = false;
-            document.getElementById("centerOverlay").style.display = "none";
             lastEnemySpawnTime = Date.now();
+            renderBattleDeckSlots();
         }
 
-        function showRewardModal() {
-            document.getElementById("centerOverlay").style.display = "none";
-            document.getElementById("rewardModal").style.display = "block";
-        }
-
-        function closeModalAndStartStage2() {
-            document.getElementById("rewardModal").style.display = "none";
-            initStage(2);
-        }
-
-        function triggerCooldown(type) {
-            const config = playerUnitConfigs[type];
-            cooldownState[type].ready = false;
-            cooldownState[type].total = config.cooldown;
-            cooldownState[type].remaining = config.cooldown;
+        function triggerCooldown(index, duration) {
+            cooldownState[index].ready = false;
+            cooldownState[index].total = duration;
+            cooldownState[index].remaining = duration;
 
             const interval = 20;
             const timer = setInterval(() => {
                 if (!isPaused) {
-                    cooldownState[type].remaining -= interval;
-                    if (cooldownState[type].remaining <= 0) {
-                        cooldownState[type].remaining = 0;
-                        cooldownState[type].ready = true;
+                    cooldownState[index].remaining -= interval;
+                    if (cooldownState[index].remaining <= 0) {
+                        cooldownState[index].remaining = 0;
+                        cooldownState[index].ready = true;
                         clearInterval(timer);
                     }
                 }
             }, interval);
         }
 
-        function spawnPlayerUnit(type) {
+        function spawnPlayerUnit(slotIndex) {
             if (!gameStarted || gameOver || isPaused) return;
-            if (type === 'axe' && currentStage < 2) return;
+            const charKey = currentDeck[slotIndex];
+            if (!charKey) return;
 
-            const config = playerUnitConfigs[type];
-
-            if (money < config.cost || !cooldownState[type].ready) return;
+            const config = characterDB[charKey];
+            if (money < config.cost || !cooldownState[slotIndex].ready) return;
 
             money -= config.cost;
             playSpawnSound();
-            triggerCooldown(type);
+            triggerCooldown(slotIndex, config.cooldown);
 
             playerUnits.push({
-                type: type,
+                type: charKey,
                 x: playerCastle.x - config.width,
                 y: groundY - config.height,
                 width: config.width,
@@ -543,7 +587,6 @@ game_code = """
 
             waveEffect.active = true;
             waveEffect.radius = 0;
-
             playerUnits.forEach(pUnit => {
                 pUnit.x = Math.min(playerCastle.x - pUnit.width, pUnit.x + 180);
             });
@@ -559,7 +602,6 @@ game_code = """
             const now = Date.now();
             if (now - lastEnemySpawnTime > Math.random() * 1500 + 2500) {
                 lastEnemySpawnTime = now;
-
                 const spawnCount = Math.random() < 0.2 ? 2 : 1;
                 for (let i = 0; i < spawnCount; i++) {
                     const isDoge = Math.random() < 0.6;
@@ -583,34 +625,54 @@ game_code = """
             }
         }
 
+        function openSettings() {
+            initAudio();
+            isPaused = true;
+            document.getElementById("settingsModal").style.display = "block";
+        }
+
+        function closeSettings() {
+            isPaused = false;
+            document.getElementById("settingsModal").style.display = "none";
+        }
+
+        function goToHomeFromSettings() {
+            showHomeScreen();
+        }
+
+        function handleVictoryComplete() {
+            document.getElementById("centerOverlay").style.display = "none";
+            if (currentStage === 1 && !unlockedCharacters.includes('axe')) {
+                unlockedCharacters.push('axe');
+                maxUnlockedStage = Math.max(maxUnlockedStage, 2);
+                document.getElementById("rewardModal").style.display = "block";
+            } else {
+                showHomeScreen();
+            }
+        }
+
+        function closeRewardAndGoHome() {
+            document.getElementById("rewardModal").style.display = "none";
+            showHomeScreen();
+        }
+
         function updateUI() {
             document.getElementById("moneyTxt").innerText = Math.floor(money);
 
-            const slotBasic = document.getElementById("slotBasic");
-            const cdBasic = document.getElementById("cdBasic");
-            cdBasic.style.height = ((cooldownState.basic.remaining / cooldownState.basic.total) * 100) + "%";
-            if (gameStarted && !gameOver && !isPaused && money >= playerUnitConfigs.basic.cost && cooldownState.basic.ready) {
-                slotBasic.classList.remove("disabled");
-            } else {
-                slotBasic.classList.add("disabled");
-            }
+            for (let i = 0; i < 8; i++) {
+                const charKey = currentDeck[i];
+                if (!charKey) continue;
 
-            const slotTank = document.getElementById("slotTank");
-            const cdTank = document.getElementById("cdTank");
-            cdTank.style.height = ((cooldownState.tank.remaining / cooldownState.tank.total) * 100) + "%";
-            if (gameStarted && !gameOver && !isPaused && money >= playerUnitConfigs.tank.cost && cooldownState.tank.ready) {
-                slotTank.classList.remove("disabled");
-            } else {
-                slotTank.classList.add("disabled");
-            }
-
-            const slotAxe = document.getElementById("slotAxe");
-            const cdAxe = document.getElementById("cdAxe");
-            cdAxe.style.height = ((cooldownState.axe.remaining / cooldownState.axe.total) * 100) + "%";
-            if (gameStarted && !gameOver && !isPaused && currentStage >= 2 && money >= playerUnitConfigs.axe.cost && cooldownState.axe.ready) {
-                slotAxe.classList.remove("disabled");
-            } else {
-                slotAxe.classList.add("disabled");
+                const slot = document.getElementById("bSlot_" + i);
+                const cdElem = document.getElementById("cd_" + i);
+                if (slot && cdElem) {
+                    cdElem.style.height = ((cooldownState[i].remaining / cooldownState[i].total) * 100) + "%";
+                    if (gameStarted && !gameOver && !isPaused && money >= characterDB[charKey].cost && cooldownState[i].ready) {
+                        slot.classList.remove("disabled");
+                    } else {
+                        slot.classList.add("disabled");
+                    }
+                }
             }
         }
 
@@ -628,9 +690,7 @@ game_code = """
 
             if (waveEffect.active) {
                 waveEffect.radius += 12;
-                if (waveEffect.radius >= waveEffect.maxRadius) {
-                    waveEffect.active = false;
-                }
+                if (waveEffect.radius >= waveEffect.maxRadius) waveEffect.active = false;
             }
 
             playerUnits.forEach((pUnit) => {
@@ -696,22 +756,16 @@ game_code = """
                 gameOver = true;
                 gameWon = true;
                 document.getElementById("centerOverlay").style.display = "flex";
-                if (currentStage === 1) {
-                    document.getElementById("overlayMsg").innerText = "🎉 STAGE 1 CLEAR!";
-                    document.getElementById("btnStartCenter").style.display = "none";
-                    document.getElementById("btnNextCenter").style.display = "inline-block";
-                } else {
-                    document.getElementById("overlayMsg").innerText = "🏆 ALL STAGE CLEAR!";
-                    document.getElementById("btnStartCenter").style.display = "none";
-                    document.getElementById("btnNextCenter").style.display = "none";
-                }
+                document.getElementById("overlayMsg").innerText = "🎉 VICTORY (승리!)";
+                document.getElementById("btnRewardNext").style.display = "inline-block";
+                document.getElementById("btnDefeatHome").style.display = "none";
             } else if (playerCastle.hp <= 0) {
                 gameOver = true;
                 gameWon = false;
                 document.getElementById("centerOverlay").style.display = "flex";
-                document.getElementById("overlayMsg").innerText = "💀 DEFEAT... (패배)";
-                document.getElementById("btnStartCenter").style.display = "none";
-                document.getElementById("btnNextCenter").style.display = "none";
+                document.getElementById("overlayMsg").innerText = "💀 DEFEAT (패배)";
+                document.getElementById("btnRewardNext").style.display = "none";
+                document.getElementById("btnDefeatHome").style.display = "inline-block";
             }
 
             updateUI();
@@ -837,10 +891,11 @@ game_code = """
             requestAnimationFrame(gameLoop);
         }
 
+        showHomeScreen();
         gameLoop();
     </script>
 </body>
 </html>
 """
 
-components.html(game_code, height=540)
+components.html(game_code, height=580)
