@@ -40,19 +40,23 @@ game_code = """
             align-items: center;
             gap: 12px;
         }
-        .settings-btn {
+        .settings-btn, .wallet-btn {
             background-color: #607d8b;
             color: white;
             border: none;
             padding: 6px 12px;
             border-radius: 6px;
-            font-size: 16px;
+            font-size: 14px;
             cursor: pointer;
             font-weight: bold;
         }
+        .wallet-btn {
+            background-color: #f57c00;
+        }
+        .wallet-btn:hover { background-color: #ef6c00; }
         .settings-btn:hover { background-color: #455a64; }
-        .money-display { font-size: 16px; font-weight: bold; color: #2e7d32; }
-        .ticket-display { font-size: 16px; font-weight: bold; color: #7b1fa2; margin-left: 10px; }
+        .money-display { font-size: 15px; font-weight: bold; color: #2e7d32; }
+        .ticket-display { font-size: 15px; font-weight: bold; color: #7b1fa2; }
         .stage-title { font-size: 18px; font-weight: bold; color: #1565c0; }
 
         .screen-overlay {
@@ -199,8 +203,9 @@ game_code = """
     <div class="top-bar">
         <div class="left-group">
             <button class="settings-btn" onclick="openSettings()">⚙️ 설정</button>
-            <div class="money-display">💰 소지금: <span id="moneyTxt">0</span>원 / 1000원</div>
-            <div class="ticket-display">🎟️ 뽑기권: <span id="ticketTxt">0</span>장</div>
+            <button id="walletBtn" class="wallet-btn" onclick="upgradeWallet()">👛 지갑 Lv.1 (100원)</button>
+            <div class="money-display">💰 <span id="moneyTxt">0</span>원</div>
+            <div class="ticket-display">🎟️ <span id="ticketTxt">0</span>장</div>
         </div>
         <div class="stage-title" id="stageTxt">🚩 대기 중</div>
     </div>
@@ -208,6 +213,7 @@ game_code = """
     <div class="game-container">
         <canvas id="gameCanvas" width="800" height="300"></canvas>
         
+        <!-- 홈 화면 -->
         <div id="homeScreen" class="screen-overlay" style="display: flex;">
             <h1 style="margin-bottom: 20px;">🐱 미니 냥코대전쟁</h1>
             <div style="display: flex; gap: 15px;">
@@ -217,12 +223,14 @@ game_code = """
             </div>
         </div>
 
+        <!-- 스테이지 선택 화면 -->
         <div id="stageSelectScreen" class="screen-overlay">
             <h2>🚩 스테이지 선택</h2>
             <div style="display: flex; gap: 15px; margin: 15px 0;" id="stageBtnList"></div>
             <button class="action-btn" onclick="showHomeScreen()" style="background-color: #607d8b; border-color: #455a64;">🏠 홈으로</button>
         </div>
 
+        <!-- 덱 편성 화면 -->
         <div id="deckScreen" class="screen-overlay">
             <h3>🎴 덱 편성 (8칸)</h3>
             <p style="font-size: 11px; color: #666; margin: 0 0 5px 0;">덱 슬롯 클릭 시 제거 / 하단 캐릭터 클릭 시 추가</p>
@@ -235,6 +243,7 @@ game_code = """
             <button class="action-btn" onclick="showHomeScreen()" style="background-color: #4caf50; border-color: #2e7d32; margin-top: 8px; padding: 8px 16px;">💾 저장 및 홈으로</button>
         </div>
 
+        <!-- 뽑기 화면 -->
         <div id="gachaScreen" class="screen-overlay">
             <h2>🎰 캐릭터 뽑기</h2>
             <p style="margin: 5px 0; font-size: 14px;">필요 재화: 🎟️ 뽑기권 1장</p>
@@ -243,12 +252,14 @@ game_code = """
             <button class="action-btn" onclick="showHomeScreen()" style="background-color: #607d8b; border-color: #455a64;">🏠 홈으로</button>
         </div>
 
+        <!-- 중앙 오버레이 -->
         <div id="centerOverlay" class="center-overlay" style="display: none;">
             <h2 id="overlayMsg" style="color: white; margin: 0 0 10px 0; font-size: 26px;"></h2>
             <button id="btnRewardNext" class="action-btn" style="display: none;" onclick="handleVictoryComplete()">🎁 결과 확인 및 홈으로</button>
             <button id="btnDefeatHome" class="action-btn" style="display: none; background-color: #607d8b;" onclick="showHomeScreen()">🏠 홈으로 돌아가기</button>
         </div>
 
+        <!-- 설정 모달 -->
         <div id="settingsModal" class="modal">
             <h2>⚙️ 설정</h2>
             <div style="margin: 15px 0;">
@@ -261,6 +272,7 @@ game_code = """
             </div>
         </div>
 
+        <!-- 결과 팝업 -->
         <div id="rewardModal" class="modal">
             <h2 id="rewardTitle">🎉 보상 획득!</h2>
             <p id="rewardText"></p>
@@ -268,6 +280,7 @@ game_code = """
         </div>
     </div>
 
+    <!-- 하단 덱 컨트롤 -->
     <div class="controls-container">
         <div class="controls-row" id="battleRow1"></div>
         <div class="controls-row" id="battleRow2"></div>
@@ -288,7 +301,8 @@ game_code = """
 
         let money = 0;
         const maxMoney = 1000;
-        const moneyIncomeRate = 0.5;
+        let walletLevel = 1;
+        let walletMultiplier = 1.0;
 
         // Sound System
         let audioCtx = null;
@@ -361,11 +375,51 @@ game_code = """
             }, 300);
         }
 
+        // 지갑 강화
+        function resetWallet() {
+            walletLevel = 1;
+            walletMultiplier = 1.0;
+            updateWalletBtn();
+        }
+
+        function upgradeWallet() {
+            if (!gameStarted || gameOver || isPaused) return;
+            if (walletLevel === 1) {
+                if (money >= 100) {
+                    money -= 100;
+                    walletLevel = 2;
+                    walletMultiplier = 1.4;
+                }
+            } else if (walletLevel === 2) {
+                if (money >= 200) {
+                    money -= 200;
+                    walletLevel = 3;
+                    walletMultiplier = 2.0;
+                }
+            }
+            updateWalletBtn();
+        }
+
+        function updateWalletBtn() {
+            const btn = document.getElementById("walletBtn");
+            if (walletLevel === 1) {
+                btn.innerText = "👛 지갑 Lv.1 (100원)";
+                btn.style.backgroundColor = "#f57c00";
+            } else if (walletLevel === 2) {
+                btn.innerText = "👛 지갑 Lv.2 (200원)";
+                btn.style.backgroundColor = "#fb8c00";
+            } else {
+                btn.innerText = "👛 지갑 MAX (Lv.3)";
+                btn.style.backgroundColor = "#78909c";
+            }
+        }
+
         // 캐릭터 DB
         const characterDB = {
             basic:  { name: "🐱 기본", cost: 50,  cooldown: 500,  hp: 30,  atk: 10, speed: 1.2, width: 25, height: 25, range: 5,   color: '#ffffff', atkCooldown: 60 },
             tank:   { name: "🦒 탱커", cost: 75,  cooldown: 1000, hp: 60,  atk: 7,  speed: 0.6, width: 20, height: 50, range: 5,   color: '#ffffff', atkCooldown: 80 },
-            axe:    { name: "🪓 도끼맨", cost: 100, cooldown: 2000, hp: 20,  atk: 25, speed: 1.0, width: 25, height: 30, range: 125, color: '#ff7043', atkCooldown: 70 },
+            axe:    { name: "🪓 도끼맨", cost: 100, cooldown: 2000, hp: 20,  atk: 25, speed: 1.0, width: 25, height: 30, range: 120, color: '#ff7043', atkCooldown: 70 },
+            archer: { name: "🏹 궁수", cost: 120, cooldown: 1500, hp: 20,  atk: 8,  speed: 1.1, width: 25, height: 30, range: 180, color: '#8d6e63', atkCooldown: 30 },
             titan:  { name: "🗿 거신고양이", cost: 300, cooldown: 3000, hp: 70, atk: 20, speed: 0.7, width: 35, height: 60, range: 10,  color: '#b0bec5', atkCooldown: 75 },
             gunner: { name: "🔫 총쏘는고양이", cost: 250, cooldown: 2000, hp: 17, atk: 4,  speed: 1.1, width: 25, height: 25, range: 140, color: '#ffee58', atkCooldown: 15 },
             hellma: { name: "🔥 헬파이어야옹마", cost: 800, cooldown: 5000, hp: 100, atk: 80, speed: 2.2, width: 40, height: 45, range: 15,  color: '#b71c1c', atkCooldown: 30 }
@@ -389,6 +443,7 @@ game_code = """
 
         let playerUnits = [];
         let enemyUnits = [];
+        let projectiles = []; // 도끼, 화살 등 투사체
 
         let lastEnemySpawnTime = Date.now();
         let bossSpawned = false;
@@ -408,6 +463,7 @@ game_code = """
             hideAllScreens();
             gameStarted = false;
             isPaused = true;
+            resetWallet();
             document.getElementById("homeScreen").style.display = "flex";
             document.getElementById("stageTxt").innerText = "🚩 대기 중";
             document.getElementById("ticketTxt").innerText = gachaTickets;
@@ -443,7 +499,6 @@ game_code = """
             document.getElementById("gachaScreen").style.display = "flex";
         }
 
-        // 뽑기 로직
         function drawGacha() {
             if (gachaTickets < 1) {
                 alert("🎟️ 뽑기권이 부족합니다!");
@@ -454,13 +509,9 @@ game_code = """
 
             const rand = Math.random();
             let pulledKey = "";
-            if (rand < 0.45) {
-                pulledKey = "titan";
-            } else if (rand < 0.90) {
-                pulledKey = "gunner";
-            } else {
-                pulledKey = "hellma";
-            }
+            if (rand < 0.45) pulledKey = "titan";
+            else if (rand < 0.90) pulledKey = "gunner";
+            else pulledKey = "hellma";
 
             const charInfo = characterDB[pulledKey];
             if (!unlockedCharacters.includes(pulledKey)) {
@@ -543,6 +594,7 @@ game_code = """
         function startBattleStage(stageNum) {
             initAudio();
             hideAllScreens();
+            resetWallet();
             currentStage = stageNum;
             gameStarted = true;
             gameOver = false;
@@ -555,6 +607,7 @@ game_code = """
             enemyCastle.hp = 200;
             playerUnits = [];
             enemyUnits = [];
+            projectiles = [];
 
             document.getElementById("stageTxt").innerText = "🚩 Stage " + currentStage;
             lastEnemySpawnTime = Date.now();
@@ -645,17 +698,15 @@ game_code = """
 
             const now = Date.now();
             let spawnDelay = Math.random() * 1500 + 2500;
-            if (currentStage === 3) spawnDelay = Math.random() * 600 + 800; // 매우 빠른 스폰
+            if (currentStage === 3) spawnDelay = Math.random() * 600 + 800;
 
             if (now - lastEnemySpawnTime > spawnDelay) {
                 lastEnemySpawnTime = now;
 
                 let enemyType = 'doge';
-                if (currentStage === 1) {
-                    enemyType = Math.random() < 0.6 ? 'doge' : 'snake';
-                } else if (currentStage === 2) {
-                    enemyType = Math.random() < 0.5 ? 'doge' : 'snake';
-                } else if (currentStage === 3) {
+                if (currentStage === 1) enemyType = Math.random() < 0.6 ? 'doge' : 'snake';
+                else if (currentStage === 2) enemyType = Math.random() < 0.5 ? 'doge' : 'snake';
+                else if (currentStage === 3) {
                     const r = Math.random();
                     if (r < 0.5) enemyType = 'stickmen';
                     else if (r < 0.75) enemyType = 'snake';
@@ -703,8 +754,11 @@ game_code = """
                 maxUnlockedStage = Math.max(maxUnlockedStage, 2);
                 rewardMsg = "<b>[🪓 도끼맨]</b>을 해금했습니다!";
             } else if (currentStage === 2) {
+                if (!unlockedCharacters.includes('archer')) {
+                    unlockedCharacters.push('archer');
+                }
                 maxUnlockedStage = Math.max(maxUnlockedStage, 3);
-                rewardMsg = "<b>Stage 3</b>이 해금되었습니다!";
+                rewardMsg = "<b>[🏹 궁수]</b>를 해금했으며 <b>Stage 3</b>이 열렸습니다!";
             } else if (currentStage === 3) {
                 if (Math.random() < 0.30) {
                     gachaTickets += 2;
@@ -752,7 +806,7 @@ game_code = """
             }
 
             if (money < maxMoney) {
-                money = Math.min(maxMoney, money + moneyIncomeRate);
+                money = Math.min(maxMoney, money + (0.5 * walletMultiplier));
             }
 
             spawnEnemyUnit();
@@ -762,6 +816,7 @@ game_code = """
                 if (waveEffect.radius >= waveEffect.maxRadius) waveEffect.active = false;
             }
 
+            // 아군 유닛 업데이트
             playerUnits.forEach((pUnit) => {
                 let targetEnemy = null;
                 for (let eUnit of enemyUnits) {
@@ -771,23 +826,44 @@ game_code = """
                     }
                 }
 
-                if (targetEnemy) {
+                if (targetEnemy || pUnit.x - pUnit.range <= enemyCastle.x + enemyCastle.width) {
                     pUnit.atkTimer++;
                     if (pUnit.atkTimer >= pUnit.atkCooldown) {
                         pUnit.atkTimer = 0;
-                        targetEnemy.hp -= pUnit.atk;
-                    }
-                } else if (pUnit.x - pUnit.range <= enemyCastle.x + enemyCastle.width) {
-                    pUnit.atkTimer++;
-                    if (pUnit.atkTimer >= pUnit.atkCooldown) {
-                        pUnit.atkTimer = 0;
-                        enemyCastle.hp = Math.max(0, enemyCastle.hp - pUnit.atk);
+
+                        // 특수 공격 처리 (도끼, 화살 등)
+                        if (pUnit.type === 'axe') {
+                            projectiles.push({
+                                type: 'axe',
+                                x: pUnit.x,
+                                y: pUnit.y + 10,
+                                targetX: pUnit.x - pUnit.range,
+                                speed: 6,
+                                atk: pUnit.atk,
+                                angle: 0,
+                                hit: false
+                            });
+                        } else if (pUnit.type === 'archer') {
+                            projectiles.push({
+                                type: 'arrow',
+                                x: pUnit.x,
+                                y: pUnit.y + 12,
+                                targetX: pUnit.x - pUnit.range,
+                                speed: 9,
+                                atk: pUnit.atk,
+                                hitEnemies: [] // 관통 중복 방지
+                            });
+                        } else {
+                            if (targetEnemy) targetEnemy.hp -= pUnit.atk;
+                            else enemyCastle.hp = Math.max(0, enemyCastle.hp - pUnit.atk);
+                        }
                     }
                 } else {
                     pUnit.x -= pUnit.speed;
                 }
             });
 
+            // 적군 유닛 업데이트
             enemyUnits.forEach((eUnit) => {
                 let targetPlayer = null;
                 for (let pUnit of playerUnits) {
@@ -813,6 +889,44 @@ game_code = """
                     eUnit.x += eUnit.speed;
                 }
             });
+
+            // 투사체 업데이트
+            for (let i = projectiles.length - 1; i >= 0; i--) {
+                let p = projectiles[i];
+                p.x -= p.speed;
+
+                if (p.type === 'axe') {
+                    p.angle += 0.3;
+                    // 적군 충돌 검사 (단일 대상)
+                    for (let eUnit of enemyUnits) {
+                        if (p.x <= eUnit.x + eUnit.width && p.x >= eUnit.x) {
+                            eUnit.hp -= p.atk;
+                            p.hit = true;
+                            break;
+                        }
+                    }
+                    if (!p.hit && p.x <= enemyCastle.x + enemyCastle.width) {
+                        enemyCastle.hp = Math.max(0, enemyCastle.hp - p.atk);
+                        p.hit = true;
+                    }
+                    if (p.hit || p.x <= p.targetX) projectiles.splice(i, 1);
+                } 
+                else if (p.type === 'arrow') {
+                    // 관통 데미지 (사거리 내 이동하면서 마주치는 적 공격)
+                    enemyUnits.forEach(eUnit => {
+                        if (p.x <= eUnit.x + eUnit.width && p.x >= eUnit.x && !p.hitEnemies.includes(eUnit)) {
+                            eUnit.hp -= p.atk;
+                            p.hitEnemies.push(eUnit);
+                        }
+                    });
+                    if (p.x <= enemyCastle.x + enemyCastle.width) {
+                        enemyCastle.hp = Math.max(0, enemyCastle.hp - p.atk);
+                        projectiles.splice(i, 1);
+                    } else if (p.x <= p.targetX) {
+                        projectiles.splice(i, 1);
+                    }
+                }
+            }
 
             for (let i = playerUnits.length - 1; i >= 0; i--) {
                 if (playerUnits[i].hp <= 0) playerUnits.splice(i, 1);
@@ -889,7 +1003,7 @@ game_code = """
             ctx.fillRect(enemyCastle.x, enemyCastle.y - 35, enemyCastle.width * (enemyCastle.hp / enemyCastle.maxHp), 6);
             ctx.fillRect(playerCastle.x, playerCastle.y - 35, playerCastle.width * (playerCastle.hp / playerCastle.maxHp), 6);
 
-            // 아군 그린기
+            // 아군 유닛 그리기
             playerUnits.forEach(unit => {
                 ctx.fillStyle = unit.color;
                 ctx.fillRect(unit.x, unit.y, unit.width, unit.height);
@@ -910,6 +1024,15 @@ game_code = """
                 ctx.lineTo(unit.x + unit.width, unit.y);
                 ctx.fill(); ctx.stroke();
 
+                // 궁수 무기
+                if (unit.type === 'archer') {
+                    ctx.strokeStyle = "#5d4037";
+                    ctx.lineWidth = 2;
+                    ctx.beginPath();
+                    ctx.arc(unit.x - 2, unit.y + 15, 8, -Math.PI / 2, Math.PI / 2);
+                    ctx.stroke();
+                }
+
                 // 총쏘는 고양이 권총
                 if (unit.type === 'gunner') {
                     ctx.fillStyle = "#333333";
@@ -917,7 +1040,7 @@ game_code = """
                     ctx.fillRect(unit.x - 4, unit.y + 14, 4, 6);
                 }
 
-                // 헬파이어 야옹마 도깨비불 방망이
+                // 헬파이어 야옹마
                 if (unit.type === 'hellma') {
                     ctx.fillStyle = "#3e2723";
                     ctx.fillRect(unit.x - 8, unit.y + 5, 8, 30);
@@ -933,6 +1056,29 @@ game_code = """
                 ctx.fillRect(unit.x, unit.y - 8, unit.width * (unit.hp / unit.maxHp), 4);
             });
 
+            // 투사체 그리기 (도끼, 관통 화살)
+            projectiles.forEach(p => {
+                ctx.save();
+                if (p.type === 'axe') {
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate(p.angle);
+                    ctx.fillStyle = "#d84315";
+                    ctx.fillRect(-6, -6, 12, 12);
+                    ctx.strokeStyle = "#000";
+                    ctx.strokeRect(-6, -6, 12, 12);
+                } else if (p.type === 'arrow') {
+                    ctx.fillStyle = "#5d4037";
+                    ctx.fillRect(p.x - 15, p.y - 1, 15, 2);
+                    ctx.fillStyle = "#d32f2f";
+                    ctx.beginPath();
+                    ctx.moveTo(p.x - 15, p.y - 4);
+                    ctx.lineTo(p.x - 20, p.y);
+                    ctx.lineTo(p.x - 15, p.y + 4);
+                    ctx.fill();
+                }
+                ctx.restore();
+            });
+
             // 적군 그리기
             enemyUnits.forEach(unit => {
                 ctx.fillStyle = unit.color;
@@ -941,7 +1087,6 @@ game_code = """
                 ctx.lineWidth = 2;
                 ctx.strokeRect(unit.x, unit.y, unit.width, unit.height);
 
-                // 졸라맨 3명 연출
                 if (unit.type === 'stickmen') {
                     ctx.strokeStyle = "#ffffff";
                     ctx.lineWidth = 1;
